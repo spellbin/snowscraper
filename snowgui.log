@@ -1,0 +1,5 @@
+/usr/local/lib/python3.9/dist-packages/luma/core/interface/serial.py:203: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(pin, self._gpio.OUT)
+/usr/local/lib/python3.9/dist-packages/luma/lcd/device.py:78: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(self._pin, self._gpio.OUT)
+OK
