@@ -6,15 +6,137 @@ import spidev
 import subprocess
 import requests
 import re
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from packaging import version
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 from luma.core.interface.serial import spi
 from luma.lcd.device import ili9341
 
+REPO_URL = "https://github.com/spellbin/snowscraper.git"  
+LOCAL_REPO_PATH = "/home/snowdev/snowgui"  # Replace with your local path
+VERSION_FILE = os.path.join(LOCAL_REPO_PATH, "VERSION")  # Path to version file
+MAX_RETRIES = 3
+RETRY_DELAY = 5
+GITHUB_TOKEN = None  # Optional GitHub token for private repos
 CALIBRATION_FILE = "touch_calibration.json"
 HEARTBEAT_FILE = "heartbeat.txt"
 HEARTBEAT_INTERVAL = 30  # seconds
 
+# --- function to create a github session
+
+def create_github_session():
+    """Create a requests session with retry logic"""
+    session = requests.Session()
+    retry = Retry(
+        total=MAX_RETRIES,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+# --- determine the currently installed local version of snowscraper 
+
+def get_local_version() -> str:
+    """
+    Get the current local version from VERSION file
+    Returns version string or None if not found
+    """
+    try:
+        if not os.path.exists(VERSION_FILE):
+            return None
+            
+        with open(VERSION_FILE, 'r') as f:
+            version_str = f.read().strip()
+            return version_str if version_str else None
+    except Exception as e:
+        print(f"Error reading local version: {e}")
+        return None
+    
+# --- determine the latest version released on github
+def get_remote_version() -> str:
+    """
+    Get the latest release version from GitHub
+    Returns version string or None if not found
+    """
+    repo_path = REPO_URL.replace("https://github.com/", "").replace(".git", "")
+    api_url = f"https://api.github.com/repos/{repo_path}/releases/latest"
+    
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    
+    session = create_github_session()
+    
+    try:
+        response = session.get(api_url, timeout=10, headers=headers)
+        
+        if response.status_code == 404:
+            return None
+            
+        response.raise_for_status()
+        return response.json()["tag_name"]
+    except Exception as e:
+        print(f"Error fetching remote version: {e}")
+        return None
+    finally:
+        session.close()
+
+# --- update to latest version using git clone
+def update(version_str: str) -> bool:
+    """
+    Update the local repository to the specified version
+    Returns True if successful, False otherwise
+    """
+    if not version_str:
+        return False
+
+    try:
+        # Ensure repository exists
+        if not os.path.exists(os.path.join(LOCAL_REPO_PATH, ".git")):
+            print("Repository not found, cloning...")
+            subprocess.run(
+                ["git", "clone", REPO_URL, LOCAL_REPO_PATH],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+
+        # Fetch all tags and updates
+        subprocess.run(
+            ["git", "fetch", "--all", "--tags"],
+            cwd=LOCAL_REPO_PATH,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+        # Checkout the specific version
+        subprocess.run(
+            ["git", "checkout", f"tags/{version_str}", "-f"],
+            cwd=LOCAL_REPO_PATH,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+        # Update VERSION file
+        with open(VERSION_FILE, 'w') as f:
+            f.write(version_str)
+
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"Update failed: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"Error during update: {e}")
+        return False
+        
 # --- Heartbeat function to detect hangups
 def heartbeat():
     while True:
@@ -669,7 +791,8 @@ class MainMenuScreen(Screen):
         self.add_button(Button(60, 175, 260, 200, "Menu3",
                                lambda: screen_manager.set_screen(ImageScreen("config.png", screen_manager))))
         self.add_button(Button(60, 210, 260, 230, "Menu4",
-                               lambda: screen_manager.set_screen(ImageScreen("update.png", screen_manager))))
+                               lambda: screen_manager.set_screen(UpdateScreen(screen_manager)), visible=False))
+
 
     def draw(self, draw_obj):
         device.display(self.bg_image.copy())
@@ -900,6 +1023,53 @@ class ImageScreen(Screen):
             btn.draw(draw)
 
         device.display(img)
+        
+class UpdateScreen(Screen):
+    def __init__(self, screen_manager):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.current_ver = get_local_version()
+        self.latest_ver = get_remote_version()
+        
+        if version.parse(self.latest_ver) > version.parse(self.current_ver):
+            self.update_function = lambda: update(self.latest_ver)
+
+        else:
+            self.update_function = lambda: None
+            
+        try:
+            self.bg_image = Image.open("update.png").convert("RGB").resize((device.width, device.height))
+            self.image_missing = False
+        except FileNotFoundError:
+            print("⚠️ update.png not found. Using black background.")
+            self.bg_image = Image.new("RGB", (device.width, device.height), "black")
+            self.image_missing = True
+        print(f"[Update] Current Version: {self.current_ver}")
+        print(f"[Update] Latest Version: {self.latest_ver}")
+        
+        # Update button
+        self.add_button(Button(43, 205, 280, 235, "UPDATE", self.update_function, visible=False))
+
+        # Back button
+        self.add_button(Button(290, 210, 316, 237, "Back",
+                               lambda: screen_manager.set_screen(MainMenuScreen(screen_manager)), visible=False))
+
+    def draw(self, draw_obj):
+        img = self.bg_image.copy()
+        draw = ImageDraw.Draw(img)
+
+        try:
+            font = ImageFont.truetype("pixem.otf", 20)
+        except IOError:
+            font = ImageFont.load_default()
+
+        draw.text((125, 123), f"{self.current_ver}", fill="white", font=font)
+        draw.text((125, 168), f"{self.latest_ver}", fill="white", font=font)
+
+        for btn in self.buttons:
+            btn.draw(draw)
+
+        device.display(img)
 
 # --- Screen Manager ---
 class ScreenManager:
@@ -926,6 +1096,7 @@ class ScreenManager:
 
 # --- Main Loop ---
 def main():
+
     # Intialize touchscreen
     touch = XPT2046()
     calibrator = TouchCalibrator()
