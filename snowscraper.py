@@ -1,323 +1,197 @@
-import requests
-from bs4 import BeautifulSoup
-from RPLCD.i2c import CharLCD
-import json
-import re
-import board
-import neopixel
+import subprocess
 import time
+import os
+import psutil
+import logging
+from pathlib import Path
+import sys
+import daemon  # pip install python-daemon
 
-# WS2812B LED Setup
-LED_PIN = board.D18  # GPIO18
-LED_COUNT = 7  # Number of LEDs
-BRIGHTNESS = 0.5  # Brightness (0.0 to 1.0)
+# Configuration
+RESTART_DELAY = 5
+SCRIPT_PATH = "./snowgui.py"  # Absolute path recommended
+LOG_FILE = "logs/watchdog.log"  # System log location
+HEARTBEAT_FILE = "./heartbeat.txt"
+HEARTBEAT_TIMEOUT = 60  # seconds
+MAX_MEMORY_MB = 250  # Maximum allowed memory in MB
+CHECK_INTERVAL = 30  # seconds between checks
 
-# Initialize the NeoPixel
-pixels = neopixel.NeoPixel(LED_PIN, LED_COUNT, brightness=BRIGHTNESS, auto_write=False)
-
-# Define the list of RGB values from blue -> red
-rgb_values = [
-    (0, 0, 139),
-    (13, 0, 131),
-    (26, 0, 123),
-    (39, 0, 115),
-    (52, 0, 107),
-    (65, 0, 99),
-    (78, 0, 91),
-    (91, 0, 83),
-    (104, 0, 75),
-    (117, 0, 67),
-    (130, 0, 59),
-    (143, 0, 51),
-    (156, 0, 43),
-    (169, 0, 35),
-    (182, 0, 27),
-    (195, 0, 19),
-    (208, 0, 11),
-    (221, 0, 3),
-    (234, 0, 0),
-    (255, 0, 0)
-]
-
-# Initalize the LCD
-lcd = CharLCD('PCF8574', 0x27, port=1, cols=20, rows=4, dotsize=8, charmap='A02', auto_linebreaks=True, backlight_enabled=True)  # Adjust I2C address if necessary
-
-# create skiHill class
-class skiHill:
-  def __init__(self, name, url, newSnow, weekSnow, baseSnow):
-    self.name = name
-    self.url = url
-    self.newSnow = newSnow
-    self.weekSnow = weekSnow
-    self.baseSnow = baseSnow
-
-  def getSnow(self):
- 
-    if self.name == "Sun Peaks":
-        print("Hello my name is " + self.name)
-        values = []
-        # Initialize Beautiful Soup
-        response = requests.get(self.url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        # Find the element containing the snow amount
-        # You'll need to inspect the website to find the correct element
-        value = soup.find('span', class_='snow-new').text.strip()
-        value = int(value)
-        self.newSnow = int(value)
-        value = soup.find('span', class_='snow-7').text.strip()
-        self.weekSnow = int(value)
-            # Find the element containing the snow amount
-        # You'll need to inspect the website to find the correct element
-        html_array = soup.find_all('span', class_='value_switch value_cm')
-
-        for html_string in html_array:
-            # Parse the HTML string using BeautifulSoup
-            soup2 = BeautifulSoup(str(html_string), 'html.parser')
-    
-            # Find the <span> element with the specified class
-            span_element = soup2.find('span', class_='value_switch value_cm')
-    
-            # Extract the text content and strip any leading/trailing whitespace
-            value = span_element.text.strip()
-    
-            # Convert the value to an integer (optional, if you want to work with numbers)
-            value = int(value)
-            # Filter out values you don't want (e.g., ignore 0)
-            #    if value != 0:
-            values.append(value)
-
-        self.baseSnow = int(values[2])
-
-    if self.name == "Whistler":
-      print("Hello my name is " + self.name)
-      # Send a GET request to the webpage
-      response = requests.get(self.url)
-
-      # Check if the request was successful
-      if response.status_code == 200:
-        # Parse the HTML content using BeautifulSoup
-        soup = BeautifulSoup(response.content, 'html.parser')
-    
-        # Find the <script> tag containing the snow report data
-        script_tag = soup.find('script', string=re.compile(r'FR\.snowReportData\s*='))
-    
-        if script_tag:
-          # Extract the JavaScript content
-          script_content = script_tag.string
+class WatchdogDaemon:
+    def __init__(self):
+        self.process = None
+        self.heartbeat_file = Path(HEARTBEAT_FILE)
+        self.setup_logging()
         
-          # Use regex to extract the JSON part of the script
-          match = re.search(r'FR\.snowReportData\s*=\s*({.*?});', script_content, re.DOTALL)
-        
-          if match:
-            # Extract the JSON string
-            json_data = match.group(1)
-            
-            # Parse the JSON data
-            snow_report_data = json.loads(json_data)
-            
-            # Extract the 12-hour snowfall value in centimeters
-            overnight_snowfall_cm = snow_report_data.get('OvernightSnowfall', {}).get('Centimeters')
-            self.newSnow = int(overnight_snowfall_cm)
-            if overnight_snowfall_cm:
-                print(f"12-Hour Snowfall: {overnight_snowfall_cm} cm")
-            else:
-                print("12-Hour Snowfall data not found in the JSON.")
-          else:
-                print("Failed to extract JSON data from the script tag.")
+    def setup_logging(self):
+        """Configure proper daemon logging"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(LOG_FILE),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        logging.info("Initializing Watchdog Daemon")
 
-          # Use regex to extract the JSON part of the script
-          match = re.search(r'FR\.snowReportData\s*=\s*({.*?});', script_content, re.DOTALL)
-        
-          if match:
-            # Extract the JSON string
-            json_data = match.group(1)
-            
-            # Parse the JSON data
-            snow_report_data = json.loads(json_data)
-            
-            # Extract the 7-day snowfall value in centimeters
-            seven_day_snowfall_cm = snow_report_data.get('SevenDaySnowfall', {}).get('Centimeters')
-            self.weekSnow = int(seven_day_snowfall_cm)
-            if seven_day_snowfall_cm:
-                print(f"7-Day Snowfall: {seven_day_snowfall_cm} cm")
-            else:
-                print("7-Day Snowfall data not found in the JSON.")
-          else:
-            print("Failed to extract JSON data from the script tag.")
+    def start_process(self):
+        """Start the monitored process and log its output"""
+        log_file = open("./logs/snowgui.log", "a")  # File to store output
+        self.process = subprocess.Popen(["python3", SCRIPT_PATH])
+        logging.info(f"Started process with PID {self.process.pid}, logging to logs/snowgui.log")
+        return self.process
 
-          # Use regex to extract the JSON part of the script
-          match = re.search(r'FR\.snowReportData\s*=\s*({.*?});', script_content, re.DOTALL)
-        
-          if match:
-            # Extract the JSON string
-            json_data = match.group(1)
-            
-            # Parse the JSON data
-            snow_report_data = json.loads(json_data)
-            
-            # Extract the base depth value in centimeters
-            base_depth_cm = snow_report_data.get('BaseDepth', {}).get('Centimeters')
-            self.baseSnow = int(base_depth_cm)
-            if base_depth_cm:
-                print(f"Base Depth: {base_depth_cm} cm")
-            else:
-                print("Base Depth data not found in the JSON.")
-          else:
-                print("Failed to extract JSON data from the script tag.")
-        else:
-            print("Script tag containing snow report data not found.")
-      else:
-        print(f"Failed to retrieve the webpage. Status code: {response.status_code}")
+    def update_heartbeat(self):
+        """Update the heartbeat timestamp"""
+        try:
+            with open(self.heartbeat_file, 'w') as f:
+                f.write(str(time.time()))
+        except Exception as e:
+            logging.error(f"Heartbeat update failed: {e}")
 
-    if self.name == "Big White":
-        print("Hello my name is " + self.name)
-        
-        # Initialize Beautiful Soup
-        response = requests.get(self.url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Find all <span> elements with the class "bigger-font"
-        span_elements = soup.find_all('span', class_='bigger-font')
+    def check_heartbeat(self):
+        """Check if process is responding via heartbeat"""
+        try:
+            if not self.heartbeat_file.exists():
+                return False
+            
+            last_modified = self.heartbeat_file.stat().st_mtime
+            return (time.time() - last_modified) <= HEARTBEAT_TIMEOUT
+        except Exception as e:
+            logging.error(f"Heartbeat check failed: {e}")
+            return False
 
-        # Check if any elements were found
-        if span_elements:
-            print(f"Found {len(span_elements)} elements:")
-            for index, span in enumerate(span_elements, start=1):
-                # Extract the text content and replace `&nbsp;` with a space
-                text = span.text.replace('&nbsp;', ' ')
-                if index == 5:
-                    self.newSnow = text
-                elif index == 7:
-                    self.baseSnow = text
-                print(f"Element {index}: {text}")
+    def check_memory_usage(self):
+        """Check if process is using too much memory"""
+        if not self.process or self.process.poll() is not None:
+            return False
+        
+        try:
+            process = psutil.Process(self.process.pid)
+            mem_info = process.memory_full_info()
+            memory_mb = mem_info.rss / (1024 * 1024)  # RSS in MB
+            
+            if memory_mb > MAX_MEMORY_MB:
+                logging.warning(f"Memory usage {memory_mb:.2f}MB exceeds limit {MAX_MEMORY_MB}MB")
+                return True
+            return False
+        except psutil.NoSuchProcess:
+            return False
+        except Exception as e:
+            logging.error(f"Memory check failed: {e}")
+            return False
+
+    def kill_process_tree(self):
+        """Kill the process and all its child processes"""
+        if not self.process:
+            return
+            
+        try:
+            parent = psutil.Process(self.process.pid)
+            children = parent.children(recursive=True)
+            
+            # Kill children first
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            
+            # Allow graceful termination
+            gone, alive = psutil.wait_procs(children, timeout=5)
+            for p in alive:
+                p.kill()
+            
+            # Then kill parent
+            parent.terminate()
+            try:
+                parent.wait(timeout=5)
+            except psutil.TimeoutExpired:
+                parent.kill()
+            
+        except psutil.NoSuchProcess:
+            pass
+        except Exception as e:
+            logging.error(f"Error killing process tree: {e}")
+            try:
+                self.process.kill()
+            except:
+                pass
+        finally:
+            try:
+                if self.heartbeat_file.exists():
+                    self.heartbeat_file.unlink()
+            except:
+                pass
+
+    def restart_process(self, reason="unknown"):
+        """Restart the monitored process with a reason"""
+        logging.info(f"Restarting process due to: {reason}")
+        
+        # First kill the old process
+        self.kill_process_tree()
+        
+        # Wait before restarting
+        time.sleep(RESTART_DELAY)
+        
+        # Start new process
+        if not self.start_process():
+            logging.error("Failed to restart process. Retrying...")
+            time.sleep(RESTART_DELAY * 2)
+            self.start_process()
+
+    def is_process_running(self):
+        """Check if the process is still running"""
+        if self.process is None:
+            return False
+        return self.process.poll() is None
+
+    def run(self):
+        """Main monitoring loop"""
+        logging.info("Starting watchdog daemon")
+        logging.info(f"Config - Memory: {MAX_MEMORY_MB}MB, Heartbeat: {HEARTBEAT_TIMEOUT}s")
+        
+        if not self.start_process():
+            logging.error("Initial process start failed. Exiting.")
+            return
+        
+        while True:
+            try:
+                if not self.is_process_running():
+                    self.restart_process("process crashed")
                 
-        big_font_elements = soup.find_all(class_='big-font')
-
-        # Check if any elements were found
-        if big_font_elements:
-            print(f"Found {len(big_font_elements)} elements:")
-            for index, element in enumerate(big_font_elements, start=1):
-                # Extract the text content and replace `&nbsp;` with a space
-                text = element.text.replace('&nbsp;', ' ')
-                if index == 2:
-                    self.weekSnow = text
-                print(f"Element {index}: {text}")
+                # Check for hangs using heartbeat
+                elif not self.check_heartbeat():
+                    self.restart_process("heartbeat timeout (process hung)")
                 
+                # Check for memory leaks
+                elif self.check_memory_usage():
+                    self.restart_process("excessive memory usage")
+                
+                time.sleep(CHECK_INTERVAL)
+                
+            except KeyboardInterrupt:
+                logging.info("Watchdog received shutdown signal")
+                self.kill_process_tree()
+                break
+            except Exception as e:
+                logging.error(f"Watchdog error: {e}")
+                time.sleep(CHECK_INTERVAL)  # Prevent tight error loops
 
-        else:
-            print("No elements found.")
-            
-# define all ski hills
-sunPeaks = skiHill(name = "Sun Peaks", url = "https://www.sunpeaksresort.com/ski-ride/weather-conditions-cams/weather-snow-report", newSnow = 0, weekSnow = 0, baseSnow = 0)
-silverStar = skiHill(name = "SilverStar", url = "https://www.skisilverstar.com/the-mountain/weather-conditions/snow-report-forecast", newSnow = 0, weekSnow = 0, baseSnow = 0)
-bigWhite = skiHill(name = "Big White", url = "https://www.bigwhite.com/mountain-conditions/daily-snow-report", newSnow = 0, weekSnow = 0, baseSnow = 0)
-whistler = skiHill(name = "Whistler", url = "https://www.whistlerblackcomb.com/the-mountain/mountain-conditions/snow-and-weather-report.aspx", newSnow = 0, weekSnow = 0, baseSnow = 0)
-revelstoke = skiHill(name = "Revelstoke", url = "https://www.revelstokemountainresort.com/mountain/conditions/snow-report/", newSnow = 0, weekSnow = 0, baseSnow = 0)
-kickingHorse = skiHill(name = "Kicking Horse", url = "https://kickinghorseresort.com/conditions/snow-report/", newSnow = 0, weekSnow = 0, baseSnow = 0)
-lakeLouise = skiHill(name = "Lake Louise", url = "https://www.skilouise.com/snow-conditions/", newSnow = 0, weekSnow = 0, baseSnow = 0)
-banffSunshine = skiHill(name = "Banff Sunshine", url = "https://www.skibanff.com/conditions/", newSnow = 0, weekSnow = 0, baseSnow = 0)
-redMountain = skiHill(name = "Red Mountian", url = "https://www.redresort.com/report/", newSnow = 0, weekSnow = 0, baseSnow = 0)
-whiteWater = skiHill(name = "WhiteWater", url = "https://skiwhitewater.com/conditions/", newSnow = 0, weekSnow = 0, baseSnow = 0)
-
-#create list of ski hills
-skiHills = [sunPeaks, silverStar, bigWhite, whistler, revelstoke, kickingHorse, lakeLouise, banffSunshine, redMountain, whiteWater]
-
-
-
-
-# Function to set LED color based on snow amount
-def set_led_color(snow_amount):
-    if snow_amount == 0:
-        pixels.fill((255, 255, 255))
-        pixels.show()
-    elif snow_amount > 20:
-        for x in range(20):
-          r, g, b = rgb_values[x]
-          pixels.fill((r, g, b))
-          pixels.show()
-          if x > 10:
-            delay = 1 / x
-            time.sleep(delay)
-          else:
-            time.sleep(0.1)
-    else:
-        for x in range(snow_amount):
-          r, g, b = rgb_values[x]
-          pixels.fill((r, g, b))
-          pixels.show()
-          if x > 10:
-            delay = 1 / x
-            time.sleep(delay)
-          else:
-            time.sleep(0.1)
-          #time.sleep(0.03)
-       
+def daemon_main():
+    """Run as a proper daemon"""
+    with daemon.DaemonContext(
+        working_directory=os.path.dirname(os.path.abspath(__file__)),
+        umask=0o002,
+        prevent_core=False,
+        files_preserve=[sys.stdout, sys.stderr]
+    ):
+        watchdog = WatchdogDaemon()
+        watchdog.run()
 
 if __name__ == "__main__":
-    try:
-        #open skihill.conf to determine ski hill
-        # Open the file in read mode
-        with open('/home/snowdev/skihill.conf', 'r') as file:
-          # Read the first character
-          first_char = file.read(1)
-    
-        # Convert the character to an integer using ord()
-        if first_char:  # Check if the file is not empty
-          mountain = int(first_char)
-        else:
-          mountain = 0  # Handle the case where the file is empty
-
-        # get the snow data
-        
-        skiHills[mountain].getSnow()
-      
-        # Display on LCD
-
-        lcd.clear()
-        resort_name = skiHills[mountain].name
-        message = f"      {resort_name}\n\r"
-        lcd.write_string(message)
-        print(message)
-        snow_amount = skiHills[mountain].newSnow
-        message = f"New Snow:      {snow_amount}cm\n\r"
-        print(message)
-        lcd.write_string(message)
-        snow_amount = skiHills[mountain].weekSnow
-        message = f"7 Day Snow:    {snow_amount}cm\n\r"
-        print(message)
-        lcd.write_string(message)       
-        snow_amount = skiHills[mountain].baseSnow
-        message = f"Alpine Base:   {snow_amount}cm"
-        print(message)
-        lcd.write_string(message)
-
-        # Set LED color
-        set_led_color(skiHills[mountain].newSnow)
-
-        # demo code
-        '''
-        for x in range(25):
-          lcd.clear()
-          set_led_color(x)
-          resort_name = skiHills[mountain].name
-          message = f"{resort_name}\n\r"
-          print(message)
-          lcd.write_string(message)      
-          message = f"New Snow:      {x}cm\n\r"
-          print(message)
-          lcd.write_string(message)
-
-          snow_amount = x + 25
-          message = f"7 Day Snow:    {snow_amount}cm\n\r"
-          print(message)
-          lcd.write_string(message)       
-    
-          snow_amount = x + 185
-          message = f"Alpine Base:   {snow_amount}cm"
-          print(message)
-          lcd.write_string(message)
-          time.sleep(5)
-          '''                                
-    except Exception as e:
-        print(f"Error: {e}")
-    
+    # Run as daemon if not in foreground mode
+    if '--foreground' in sys.argv:
+        WatchdogDaemon().run()
+    else:
+        daemon_main()

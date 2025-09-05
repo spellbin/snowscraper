@@ -1,0 +1,67 @@
+2025-05-29 10:12:30,101 - INFO - Initializing Watchdog Daemon
+2025-05-29 10:12:30,102 - INFO - Starting watchdog daemon
+2025-05-29 10:12:30,103 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-05-29 10:12:30,108 - INFO - Started process with PID 7346, logging to /home/snowdev/snowgui.log
+2025-05-29 10:13:00,142 - INFO - Restarting process due to: process crashed
+2025-05-29 10:13:05,156 - INFO - Started process with PID 7487, logging to /home/snowdev/snowgui.log
+2025-05-29 10:19:52,304 - INFO - Initializing Watchdog Daemon
+2025-05-29 10:19:52,304 - INFO - Starting watchdog daemon
+2025-05-29 10:19:52,305 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-05-29 10:19:52,310 - INFO - Started process with PID 9657, logging to ./snowgui.log
+2025-05-29 13:24:45,749 - INFO - Initializing Watchdog Daemon
+2025-05-29 13:24:45,750 - INFO - Starting watchdog daemon
+2025-05-29 13:24:45,750 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-05-29 13:24:45,755 - INFO - Started process with PID 18675, logging to ./snowgui.log
+2025-05-29 13:24:45,757 - INFO - Restarting process due to: heartbeat timeout (process hung)
+2025-05-29 13:24:50,790 - INFO - Started process with PID 18699, logging to ./snowgui.log
+2025-05-29 13:25:20,822 - INFO - Restarting process due to: process crashed
+2025-05-29 13:25:25,837 - INFO - Started process with PID 18831, logging to ./snowgui.log
+2025-05-29 13:25:55,869 - INFO - Restarting process due to: process crashed
+2025-05-29 13:26:00,883 - INFO - Started process with PID 18973, logging to ./snowgui.log
+2025-05-29 13:26:30,915 - INFO - Restarting process due to: process crashed
+2025-05-29 13:26:35,930 - INFO - Started process with PID 19114, logging to ./snowgui.log
+2025-05-29 13:27:07,125 - INFO - Initializing Watchdog Daemon
+2025-05-29 13:27:07,126 - INFO - Starting watchdog daemon
+2025-05-29 13:27:07,126 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-05-29 13:27:07,131 - INFO - Started process with PID 19235, logging to ./snowgui.log
+2025-05-29 13:27:07,133 - INFO - Restarting process due to: heartbeat timeout (process hung)
+2025-05-29 13:27:12,165 - INFO - Started process with PID 19258, logging to ./snowgui.log
+2025-05-31 20:17:09,391 - INFO - Initializing Watchdog Daemon
+2025-05-31 20:17:09,392 - INFO - Starting watchdog daemon
+2025-05-31 20:17:09,392 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-05-31 20:17:09,397 - INFO - Started process with PID 17641, logging to ./snowgui.log
+2025-05-31 20:17:09,399 - INFO - Restarting process due to: heartbeat timeout (process hung)
+2025-05-31 20:17:14,432 - INFO - Started process with PID 17665, logging to ./snowgui.log
+2025-06-02 07:12:26,030 - INFO - Restarting process due to: process crashed
+2025-06-02 07:12:31,044 - INFO - Started process with PID 18908, logging to ./snowgui.log
+2025-09-05 12:22:03,131 - INFO - Initializing Watchdog Daemon
+2025-09-05 12:22:03,132 - INFO - Starting watchdog daemon
+2025-09-05 12:22:03,132 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-09-05 12:22:03,138 - INFO - Started process with PID 16184, logging to logs/snowgui.log
+2025-09-05 12:25:15,381 - INFO - Initializing Watchdog Daemon
+2025-09-05 12:25:15,381 - INFO - Starting watchdog daemon
+2025-09-05 12:25:15,382 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-09-05 12:25:15,387 - INFO - Started process with PID 16908, logging to logs/snowgui.log
+2025-09-05 12:25:15,389 - INFO - Restarting process due to: heartbeat timeout (process hung)
+2025-09-05 12:25:20,423 - INFO - Started process with PID 16921, logging to logs/snowgui.log
+2025-09-05 12:34:38,562 - INFO - Initializing Watchdog Daemon
+2025-09-05 12:34:38,563 - INFO - Watchdog started | Memory cap=250MB | Heartbeat=60s
+2025-09-05 12:34:38,569 - INFO - Started snowgui.py with PID 18976, output → logs/snowgui.log
+2025-09-05 12:34:38,570 - INFO - Restarting snowgui due to: heartbeat timeout
+2025-09-05 12:34:43,605 - INFO - Started snowgui.py with PID 18999, output → logs/snowgui.log
+2025-09-05 12:36:30,608 - INFO - Initializing Watchdog Daemon
+2025-09-05 12:36:30,609 - INFO - Watchdog started | Memory cap=250MB | Heartbeat=60s
+2025-09-05 12:36:30,615 - INFO - Started snowgui.py with PID 19432, output → logs/snowgui.log
+2025-09-05 12:38:24,197 - INFO - Initializing Watchdog Daemon
+2025-09-05 12:38:24,198 - INFO - Watchdog started | Memory cap=250MB | Heartbeat=60s
+2025-09-05 12:38:24,203 - INFO - Started snowgui.py with PID 19898, output → logs/snowgui.log
+2025-09-05 12:51:18,396 - INFO - Initializing Watchdog Daemon
+2025-09-05 12:51:18,401 - INFO - Starting watchdog daemon
+2025-09-05 12:51:18,402 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-09-05 12:51:18,407 - INFO - Started process with PID 1324, logging to logs/snowgui.log
+2025-09-05 12:51:18,408 - INFO - Restarting process due to: heartbeat timeout (process hung)
+2025-09-05 12:51:23,443 - INFO - Started process with PID 1347, logging to logs/snowgui.log
+2025-09-05 12:55:34,640 - INFO - Initializing Watchdog Daemon
+2025-09-05 12:55:34,641 - INFO - Starting watchdog daemon
+2025-09-05 12:55:34,641 - INFO - Config - Memory: 250MB, Heartbeat: 60s
+2025-09-05 12:55:34,646 - INFO - Started process with PID 2318, logging to logs/snowgui.log

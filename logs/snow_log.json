@@ -1,0 +1,18 @@
+{
+  "Sun Peaks": {
+    "current": {
+      "date": "2025-08-25",
+      "newSnow": 0,
+      "weekSnow": 0,
+      "baseSnow": 0
+    },
+    "history": [
+      {
+        "date": "2025-08-25",
+        "newSnow": 0,
+        "weekSnow": 0,
+        "baseSnow": 0
+      }
+    ]
+  }
+}

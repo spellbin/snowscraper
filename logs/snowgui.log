@@ -1,0 +1,82 @@
+/usr/local/lib/python3.9/dist-packages/luma/core/interface/serial.py:203: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(pin, self._gpio.OUT)
+/usr/local/lib/python3.9/dist-packages/luma/lcd/device.py:78: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(self._pin, self._gpio.OUT)
+[LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+/usr/local/lib/python3.9/dist-packages/luma/core/interface/serial.py:203: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(pin, self._gpio.OUT)
+/usr/local/lib/python3.9/dist-packages/luma/lcd/device.py:78: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(self._pin, self._gpio.OUT)
+[Hill] Reloaded: Sun Peaks
+[Snow] Sun Peaks: 24h new = 10
+[BUTTON] Config
+[BUTTON] Set Alarm
+[BUTTON] Incr Snow
+[Alarm] alarm.conf saved.
+[BUTTON] Back
+[BUTTON] Back
+[LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+/usr/local/lib/python3.9/dist-packages/luma/core/interface/serial.py:203: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(pin, self._gpio.OUT)
+/usr/local/lib/python3.9/dist-packages/luma/lcd/device.py:78: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(self._pin, self._gpio.OUT)
+[Hill] Reloaded: Sun Peaks
+[Snow] Sun Peaks: 24h new = 10
+[BUTTON] Config
+[BUTTON] Config
+[LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+/usr/local/lib/python3.9/dist-packages/luma/core/interface/serial.py:203: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(pin, self._gpio.OUT)
+/usr/local/lib/python3.9/dist-packages/luma/lcd/device.py:78: RuntimeWarning: This channel is already in use, continuing anyway.  Use GPIO.setwarnings(False) to disable warnings.
+  self._gpio.setup(self._pin, self._gpio.OUT)
+[Hill] Reloaded: Sun Peaks
+[Snow] Sun Peaks: 24h new = 10
+[BUTTON] Config WiFi
+[BUTTON] Config
+[BUTTON] PASSWORD
+[BUTTON] Set Alarm
+[Snow] Sun Peaks: 24h new = 10
+2025-09-05 12:48:19,487 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-05 12:48:23,238 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-05 12:48:23,700 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 12:48:31,662 INFO [snowgui] Exiting.
+2025-09-05 12:49:48,066 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-05 12:49:51,939 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-05 12:49:52,398 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 12:50:00,264 INFO [snowgui] [BUTTON] Config
+2025-09-05 12:50:01,695 INFO [snowgui] [BUTTON] Set Alarm
+2025-09-05 12:50:03,104 INFO [snowgui] [BUTTON] Incr Snow
+2025-09-05 12:50:03,107 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-05 12:50:03,300 INFO [snowgui] [BUTTON] Incr Snow
+2025-09-05 12:50:03,304 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-05 12:50:03,498 INFO [snowgui] [BUTTON] Incr Snow
+2025-09-05 12:50:03,501 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-05 12:50:04,771 INFO [snowgui] [BUTTON] Back
+2025-09-05 12:50:05,727 INFO [snowgui] [BUTTON] Back
+2025-09-05 12:50:15,581 INFO [snowgui] Exiting.
+2025-09-05 12:51:25,501 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-05 12:51:25,501 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-05 12:51:29,231 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-05 12:51:29,231 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-05 12:51:29,691 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 12:51:29,691 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 12:51:49,236 INFO [snowgui] [BUTTON] Config
+2025-09-05 12:51:49,236 INFO [snowgui] [BUTTON] Config
+2025-09-05 12:51:50,018 INFO [snowgui] [BUTTON] Set Alarm
+2025-09-05 12:51:50,018 INFO [snowgui] [BUTTON] Set Alarm
+2025-09-05 12:51:51,918 INFO [snowgui] [BUTTON] Incr Snow
+2025-09-05 12:51:51,918 INFO [snowgui] [BUTTON] Incr Snow
+2025-09-05 12:51:51,922 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-05 12:51:51,922 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-05 12:51:52,731 INFO [snowgui] [BUTTON] Back
+2025-09-05 12:51:52,731 INFO [snowgui] [BUTTON] Back
+2025-09-05 12:55:36,658 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-05 12:55:40,404 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-05 12:55:40,869 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 12:55:54,261 INFO [snowgui] [BUTTON] Config
+2025-09-05 12:55:55,886 INFO [snowgui] [BUTTON] Set Alarm
+2025-09-05 12:55:57,164 INFO [snowgui] [BUTTON] Incr Snow
+2025-09-05 12:55:57,167 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-05 12:55:57,511 INFO [snowgui] [BUTTON] Incr Snow
+2025-09-05 12:55:57,515 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-05 12:55:58,477 INFO [snowgui] [BUTTON] Back
