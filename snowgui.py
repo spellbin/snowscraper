@@ -18,23 +18,24 @@ from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 from luma.core.interface.serial import spi
 from luma.lcd.device import ili9341
+from debug_hud import draw_cpu_badge, draw_wifi_bars_badge
 
 # ----------------------------
 # Constants & Config
 # ----------------------------
 REPO_URL = "https://github.com/spellbin/snowscraper.git"
-LOCAL_REPO_PATH = "/home/snowdev/snowgui"  # Replace with your local path
+LOCAL_REPO_PATH = "/home/pi/snowscraper"  # Replace with your local path
 VERSION_FILE = os.path.join(LOCAL_REPO_PATH, "VERSION")  # Path to version file
 MAX_RETRIES = 3
 RETRY_DELAY = 5
-VERBOSE = False # set True for extra console logging ie. each touch read
+VERBOSE = True # set True for extra console logging ie. each touch read
 GITHUB_TOKEN = None  # Optional GitHub token for private repos
-CALIBRATION_FILE = "./conf/touch_calibration.json"
-HEARTBEAT_FILE = "heartbeat.txt"
-ALARM_CONF_FILE = "./conf/alarm.conf"
+CALIBRATION_FILE = "/home/pi/snowscraper/conf/touch_calibration.json"
+HEARTBEAT_FILE = "/home/pi/snowscraper/heartbeat.txt"
+ALARM_CONF_FILE = "/home/pi/snowscraper/conf/alarm.conf"
 HEARTBEAT_INTERVAL = 30  # seconds
 DEV_MODE = True  # set True to avoid hitting live scrapers
-SNOW_LOG_FILE = "logs/snow_log.json"
+SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.json"
 
 # ---- Global hill singleton ---------------------------------
 hill = None  # skiHill instance; refreshed when skihill.conf changes
@@ -1111,22 +1112,23 @@ def reload_hill():
 def get_available_ssids():
     try:
         result = subprocess.run(
-            ["sudo", "wpa_cli", "-i", "wlan0", "scan_results"],
+            ["sudo", "iwlist", "wlan0", "scan"],
             capture_output=True,
             text=True,
             check=True,
         )
         ssids = []
-        lines = result.stdout.splitlines()
-        for line in lines[1:]:
-            parts = line.split("\t")
-            if len(parts) >= 5:
-                ssid = parts[4].strip()
-                if ssid:
+        seen = set()
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("ESSID:"):
+                ssid = line.split(":", 1)[1].strip().strip('"')
+                if ssid and ssid not in seen:  # skip hidden and duplicates
                     ssids.append(ssid)
+                    seen.add(ssid)
         return ssids
     except subprocess.CalledProcessError as e:
-        print(f"Error running wpa_cli: {e}")
+        print(f"Error running iwlist: {e}")
         return []
 
 
@@ -1145,39 +1147,55 @@ def reconfigure_wifi():
 # Touch Controller & Calibration
 # ----------------------------
 class XPT2046:
-    def __init__(self, spi_bus=0, spi_device=1):
+    """
+    Raw touch reader. Reads 12-bit coordinates from XPT2046 on SPI0.<device>.
+    """
+    def __init__(self, spi_bus=0, spi_device=1, max_speed=400_000, penirq_gpio=None):
         self.spi = spidev.SpiDev()
-        self.spi.open(spi_bus, spi_device)
-        self.spi.max_speed_hz = 500000
+        self.spi.open(spi_bus, spi_device)     # set spi_device=0 if T_CS is on CE0
+        self.spi.max_speed_hz = max_speed      # 200–400 kHz is robust
         self.spi.mode = 0b00
 
-    def _read_channel(self, cmd):
-        response = self.spi.xfer2([cmd, 0x00, 0x00])
-        value = ((response[1] << 8) | response[2]) >> 4
-        return value
+        self.penirq_gpio = penirq_gpio
+        if _HAS_GPIO and self.penirq_gpio is not None:
+            GPIO.setwarnings(False)
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.penirq_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # PENIRQ active-low
+
+    def _read12(self, cmd):
+        # Throw-away read to let ADC settle, then real read
+        self.spi.xfer2([cmd, 0x00, 0x00])
+        r = self.spi.xfer2([cmd, 0x00, 0x00])
+        return ((r[1] << 8) | r[2]) >> 4
+
+    def _pressed(self):
+        if not (_HAS_GPIO and self.penirq_gpio is not None):
+            return True  # fail-open if no IRQ wire yet
+        return GPIO.input(self.penirq_gpio) == 0
 
     def read_touch(self, samples=5, tolerance=50):
+        if not self._pressed():
+            return None
         readings = []
         for _ in range(samples):
-            raw_y = self._read_channel(0xD0)
-            raw_x = self._read_channel(0x90)
+            raw_y = self._read12(0xD0)  # Y
+            raw_x = self._read12(0x90)  # X
             if 100 < raw_x < 4000 and 100 < raw_y < 4000:
                 readings.append((raw_x, raw_y))
-            time.sleep(0.01)
+            time.sleep(0.005)
 
         if len(readings) < 3:
             return None
-
         xs, ys = zip(*readings)
         if max(xs) - min(xs) > tolerance or max(ys) - min(ys) > tolerance:
             return None
-
-        avg_x = sum(xs) // len(xs)
-        avg_y = sum(ys) // len(ys)
-        return (avg_x, avg_y)
+        return (sum(xs)//len(xs), sum(ys)//len(ys))
 
     def close(self):
-        self.spi.close()
+        try:
+            self.spi.close()
+        except Exception:
+            pass
 
 
 class TouchCalibrator:
@@ -1295,11 +1313,11 @@ class KeyboardScreen(Screen):
         toggle_label = "[123]" if self.mode == "letters" else "[ABC]"
         self.add_button(Button(10, 160, 65, 190, toggle_label, self._toggle_mode, visible=True))
 
-        shift_label = "[↑]" if not self.shift else "[↓]"
+        shift_label = "[CAP]" if not self.shift else "[LWR]"
         self.add_button(Button(70, 160, 125, 190, shift_label, self._toggle_shift, visible=True))
 
         self.add_button(Button(130, 160, 220, 190, "Space", lambda: self._append_char(" "), visible=True))
-        self.add_button(Button(225, 160, 270, 190, "←", self._backspace, visible=True))
+        self.add_button(Button(225, 160, 270, 190, "DEL", self._backspace, visible=True))
         self.add_button(Button(275, 160, 310, 190, "Enter", self._submit, visible=True))
 
     def _toggle_mode(self):
@@ -1344,6 +1362,9 @@ class MainMenuScreen(Screen):
         self.hill = hill
         try:
             self.bg_image = Image.open("images/mainmenu.png").convert("RGB").resize((device.width, device.height))
+            if VERBOSE:
+                draw_wifi_bars_badge(self.bg_image, pos="top-right")
+                draw_cpu_badge(self.bg_image, pos="top-left")
         except FileNotFoundError:
             print("⚠️ images/mainmenu.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
@@ -1538,7 +1559,7 @@ class ConfigWiFiScreen(Screen):
 
     def save_and_exit(self):
         try:
-            with open("wpa_supplicant.conf", "w") as f:
+            with open("/etc/wpa_supplicant/wpa_supplicant.conf", "w") as f:
                 f.write(
                     'ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n'
                     "update_config=1\n\n"
@@ -1847,6 +1868,7 @@ class ScreenManager:
     def redraw(self):
         img = Image.new("RGB", (device.width, device.height), "black")
         draw = ImageDraw.Draw(img)
+
         self.draw(draw)
 
 
@@ -1862,7 +1884,7 @@ def main():
     # Intialize touchscreen
     touch = None
     try:
-        touch = XPT2046()
+        touch = XPT2046(spi_bus=0, spi_device=1, penirq_gpio=22)
     except Exception as e:
         print(f"⚠️ Touch init failed: {e}")
         touch = None

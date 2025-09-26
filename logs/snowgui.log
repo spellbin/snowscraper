@@ -80,3 +80,1198 @@
 2025-09-05 12:55:57,511 INFO [snowgui] [BUTTON] Incr Snow
 2025-09-05 12:55:57,515 INFO [snowgui] [Alarm] alarm.conf saved.
 2025-09-05 12:55:58,477 INFO [snowgui] [BUTTON] Back
+2025-09-05 13:05:40,915 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 13:15:41,030 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 13:25:41,073 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 13:35:41,093 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 13:45:41,097 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 13:55:41,140 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 14:05:41,254 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 14:15:41,310 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 14:25:41,321 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 14:35:41,467 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 14:45:41,608 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 14:55:41,756 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 15:05:41,829 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 15:15:41,927 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 15:25:42,046 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 15:35:42,054 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 15:45:42,078 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 15:55:42,167 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 16:05:42,192 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 16:15:42,227 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 16:25:42,354 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 16:35:42,501 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 16:45:42,528 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 16:55:42,594 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 17:05:42,683 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 17:15:42,821 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 17:25:42,899 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 17:35:42,998 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 17:45:43,040 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 17:55:43,142 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 18:05:43,215 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 18:15:43,265 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 18:25:43,277 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 18:35:43,380 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 18:45:43,490 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 18:55:43,625 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 19:05:43,714 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 19:15:43,805 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 19:25:43,859 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 19:35:43,880 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 19:45:43,887 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 19:55:44,001 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 20:05:44,118 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 20:15:44,132 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 20:25:44,247 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 20:35:44,313 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 20:45:44,438 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 20:55:44,572 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 21:05:44,594 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 21:15:44,655 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 21:25:44,723 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 21:35:44,744 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 21:45:44,774 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 21:55:44,830 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 22:05:44,917 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 22:15:45,003 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 22:25:45,081 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 22:35:45,152 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 22:45:45,159 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 22:55:45,269 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 23:05:45,389 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 23:15:45,444 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 23:25:45,446 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 23:35:45,580 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 23:45:45,710 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-05 23:55:45,755 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 00:00:00,129 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-06 00:05:45,852 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 00:15:45,853 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 00:25:45,900 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 00:35:46,038 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 00:45:46,086 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 00:55:46,221 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 01:05:46,366 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 01:15:46,443 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 01:25:46,542 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 01:35:46,613 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 01:45:46,659 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 01:55:46,675 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 02:05:46,819 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 02:15:46,893 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 02:25:47,002 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 02:35:47,146 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 02:45:47,206 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 02:55:47,212 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 03:05:47,330 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 03:15:47,351 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 03:25:47,391 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 03:35:47,397 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 03:45:47,540 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 03:55:47,630 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 04:05:47,677 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 04:15:47,717 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 04:25:47,849 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 04:35:47,854 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 04:45:47,881 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 04:55:47,945 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 05:05:48,043 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 05:15:48,132 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 05:25:48,234 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 05:35:48,279 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 05:45:48,298 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 05:55:48,305 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 06:05:48,335 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 06:15:48,378 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 06:25:48,562 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 06:35:48,665 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 06:45:48,738 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 06:55:48,853 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 07:05:48,937 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 07:15:49,031 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 07:25:49,049 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 07:35:49,090 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 07:45:49,146 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 07:55:49,285 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 08:05:49,299 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 08:15:49,442 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 08:25:49,523 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 08:35:49,646 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 08:45:49,732 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 08:55:49,766 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 09:05:49,820 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 09:15:49,900 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 09:25:50,034 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 09:35:50,060 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 09:45:50,183 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 09:55:50,190 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 10:05:50,319 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 10:15:50,325 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 10:24:56,817 INFO [snowgui] [BUTTON] Select Resort
+2025-09-06 10:25:01,595 INFO [snowgui] [BUTTON] Back
+2025-09-06 10:25:02,047 INFO [snowgui] [BUTTON] Back
+2025-09-06 10:25:06,042 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-06 10:25:50,363 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 10:35:50,450 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 10:45:50,600 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 10:55:50,620 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 11:05:50,695 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 11:15:50,749 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 11:25:50,786 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 11:35:50,905 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 11:45:51,015 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 11:55:51,054 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 12:05:51,103 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 12:15:51,206 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 12:25:51,303 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 12:35:51,308 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 12:45:51,349 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 12:55:51,491 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 13:05:51,539 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 13:15:51,685 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 13:25:51,703 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 13:35:51,718 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 13:45:51,754 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 13:55:51,886 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 14:05:52,005 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 14:15:52,055 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 14:25:52,120 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 14:35:52,196 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 14:45:52,264 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 14:55:52,287 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 15:05:52,390 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 15:15:52,469 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 15:25:52,608 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 15:35:52,613 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 15:45:52,749 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 15:55:52,757 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 16:05:52,776 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 16:15:52,800 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 16:25:52,858 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 16:35:52,925 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 16:45:52,979 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 16:55:53,003 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 17:05:53,025 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 17:15:53,173 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 17:25:53,213 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 17:35:53,220 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 17:45:53,270 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 17:55:53,339 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 18:05:53,414 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 18:15:53,476 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 18:25:53,543 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 18:35:53,642 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 18:45:53,718 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 18:55:53,754 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 19:05:53,898 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 19:15:53,991 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 19:25:54,010 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 19:35:54,064 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 19:45:54,142 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 19:55:54,170 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 20:05:54,199 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 20:15:54,305 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 20:25:54,315 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 20:35:54,320 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 20:45:54,326 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 20:55:54,331 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 21:05:54,353 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 21:15:54,467 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 21:25:54,570 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 21:35:54,706 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 21:45:54,799 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 21:55:54,929 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 22:05:55,064 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 22:15:55,208 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 22:25:55,339 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 22:35:55,456 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 22:45:55,609 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 22:55:55,755 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 23:05:55,892 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 23:15:55,994 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 23:25:56,136 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 23:35:56,271 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 23:45:56,280 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-06 23:55:56,414 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 00:00:00,109 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-07 00:05:56,518 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 00:15:56,565 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 00:25:56,629 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 00:35:56,731 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 00:45:56,848 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 00:55:56,934 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 01:05:57,081 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 01:15:57,232 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 01:25:57,300 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 01:35:57,441 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 01:45:57,452 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 01:55:57,509 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 02:05:57,527 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 02:15:57,674 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 02:25:57,712 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 02:35:57,818 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 02:45:57,935 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 02:55:58,041 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 03:05:58,185 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 03:15:58,276 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 03:25:58,295 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 03:35:58,372 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 03:45:58,473 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 03:55:58,607 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 04:05:58,712 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 04:15:58,784 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 04:25:58,917 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 04:35:59,023 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 04:45:59,057 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 04:55:59,189 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 05:05:59,219 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 05:15:59,351 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 05:25:59,487 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 05:35:59,570 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 05:45:59,700 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 05:55:59,814 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 06:05:59,961 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 06:16:00,010 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 06:26:00,120 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 06:36:00,177 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 06:46:00,293 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 06:56:00,298 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 07:06:00,324 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 07:16:00,453 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 07:26:00,470 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 07:36:00,589 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 07:46:00,592 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 07:56:00,624 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 08:06:00,632 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 08:16:00,777 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 08:26:00,883 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 08:36:01,011 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 08:46:01,135 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 08:56:01,185 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 09:06:01,334 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 09:16:01,414 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 09:26:01,523 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 09:36:01,524 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 09:46:01,642 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 09:56:01,749 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 10:06:01,833 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 10:16:01,974 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 10:26:02,083 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 10:36:02,195 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 10:46:02,282 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 10:56:02,413 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 11:06:02,563 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 11:16:02,676 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 11:26:02,776 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 11:36:02,857 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 11:46:03,011 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 11:56:03,078 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 12:06:03,121 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 12:16:03,266 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 12:26:03,367 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 12:36:03,433 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 12:46:03,580 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 12:56:03,681 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 13:06:03,778 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 13:16:03,880 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 13:26:04,028 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 13:36:04,154 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 13:46:04,279 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 13:56:04,386 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 14:06:04,521 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 14:16:04,641 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 14:26:04,785 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 14:36:04,859 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 14:46:04,997 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 14:56:05,067 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 15:06:05,143 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 15:16:05,264 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 15:26:05,402 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 15:36:05,503 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 15:46:05,593 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 15:56:05,623 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 16:06:05,719 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 16:16:05,843 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 16:26:05,875 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 16:36:05,968 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 16:46:06,057 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 16:56:06,162 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 17:06:06,315 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 17:16:06,354 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 17:26:06,419 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 17:36:06,528 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 17:46:06,674 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 17:56:06,786 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 18:06:06,896 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 18:16:06,989 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 18:26:06,990 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 18:36:06,995 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 18:46:07,054 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 18:56:07,075 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 19:06:07,203 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 19:16:07,346 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 19:26:07,467 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 19:36:07,583 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 19:46:07,716 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 19:56:07,739 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 20:06:07,853 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 20:16:07,929 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 20:26:08,077 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 20:36:08,190 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 20:46:08,320 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 20:56:08,471 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 21:06:08,581 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 21:16:08,629 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 21:26:08,732 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 21:36:08,760 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 21:46:08,880 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 21:56:08,942 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 22:06:08,976 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 22:16:09,059 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 22:26:09,156 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 22:36:09,187 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 22:46:09,302 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 22:56:09,428 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 23:06:09,482 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 23:16:09,494 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 23:26:09,530 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 23:36:09,679 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 23:46:09,683 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-07 23:56:09,719 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 00:00:00,003 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-08 00:06:09,827 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 00:16:09,845 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 00:26:09,963 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 00:36:09,983 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 00:46:10,012 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 00:56:10,086 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 01:06:10,088 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 01:16:10,224 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 01:26:10,291 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 01:36:10,322 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 01:46:10,367 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 01:56:10,383 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 02:06:10,451 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 02:16:10,484 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 02:26:10,631 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 02:36:10,694 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 02:46:10,718 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 02:56:10,725 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 03:06:10,740 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 03:16:10,866 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 03:26:10,904 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 03:36:10,996 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 03:46:11,008 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 03:56:11,121 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 04:06:11,195 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 04:16:11,216 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 04:26:11,333 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 04:36:11,356 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 04:46:11,450 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 04:56:11,502 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 05:06:11,565 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 05:16:11,573 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 05:26:11,697 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 05:36:11,837 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 05:46:11,907 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 05:56:11,958 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 06:06:12,029 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 06:16:12,130 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 06:26:12,203 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 06:36:12,235 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 06:46:12,256 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 06:56:12,362 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 07:06:12,481 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 07:16:12,533 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 07:26:12,614 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 07:36:12,635 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 07:46:12,690 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 07:56:12,720 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 08:06:12,848 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 08:16:12,884 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 08:26:13,001 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 08:36:13,153 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 08:46:13,291 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 08:56:13,317 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 09:06:13,401 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 09:16:13,430 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 09:26:13,554 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 09:36:13,611 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 09:46:13,709 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 09:56:13,842 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 10:06:13,985 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 10:16:14,029 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 10:26:14,171 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 10:36:14,232 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 10:46:14,320 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 10:56:14,432 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 11:06:14,503 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 11:16:14,577 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 11:26:14,593 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 11:36:14,594 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 11:46:14,613 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 11:56:14,698 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 12:06:14,772 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 12:16:14,863 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 12:26:14,885 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 12:36:14,976 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 12:46:15,104 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 12:56:15,146 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 13:06:15,209 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 13:16:15,289 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 13:26:15,314 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 13:36:15,384 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 13:46:15,487 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 13:56:15,544 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 14:06:15,620 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 14:16:15,721 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 14:26:15,815 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 14:36:15,882 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 14:46:15,928 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 14:56:15,997 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 15:06:16,040 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 15:16:16,166 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 15:26:16,311 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 15:36:16,385 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 15:46:16,453 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 15:56:16,572 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 16:06:16,638 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 16:16:16,648 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 16:26:16,776 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 16:36:16,879 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 16:46:16,998 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 16:56:17,141 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 17:06:17,220 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 17:16:17,279 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 17:26:17,293 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 17:36:17,370 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 17:46:17,542 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 17:56:17,617 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 18:06:17,756 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 18:16:17,796 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 18:26:17,950 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 18:36:18,030 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 18:46:18,140 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 18:56:18,143 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 19:06:18,145 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 19:16:18,255 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 19:26:18,295 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 19:36:18,374 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 19:46:18,492 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-08 19:56:18,584 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 19:53:59,697 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-15 19:54:03,496 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-15 19:54:03,963 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 19:54:03,983 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-15 19:54:13,969 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-15 19:54:15,193 INFO [snowgui] [BUTTON] Back
+2025-09-15 19:54:16,094 INFO [snowgui] [BUTTON] Avy Conditions
+2025-09-15 19:54:16,986 INFO [snowgui] [BUTTON] Back
+2025-09-15 20:04:03,969 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 20:14:03,981 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 20:24:04,086 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 20:34:04,238 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 20:44:04,330 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 20:54:04,391 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 21:04:04,473 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 21:14:04,508 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 21:24:04,584 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 21:34:04,734 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 21:44:04,793 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 21:54:04,868 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 22:04:04,965 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-15 22:14:05,044 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 18:51:33,526 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-16 18:51:33,931 INFO [snowgui] ⚠️ Touch init failed: an integer is required (got type XPT2046)
+2025-09-16 18:51:37,269 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-16 18:51:37,687 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 18:51:37,706 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-16 18:52:22,353 INFO [snowgui] Exiting.
+2025-09-16 18:52:25,356 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-16 18:52:29,083 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-16 18:52:29,491 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 18:52:33,910 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-16 18:52:35,005 INFO [snowgui] [BUTTON] Back
+2025-09-16 18:52:35,864 INFO [snowgui] [BUTTON] Avy Conditions
+2025-09-16 18:52:36,927 INFO [snowgui] [BUTTON] Back
+2025-09-16 18:52:37,681 INFO [snowgui] [BUTTON] Config
+2025-09-16 18:52:38,576 INFO [snowgui] [BUTTON] Back
+2025-09-16 18:52:39,715 INFO [snowgui] [BUTTON] Update
+2025-09-16 18:52:40,213 INFO [snowgui] [Update] Current Version: v1.2.0
+2025-09-16 18:52:40,214 INFO [snowgui] [Update] Latest Version: v2.0.0
+2025-09-16 18:52:41,795 INFO [snowgui] [BUTTON] Back
+2025-09-16 19:02:29,587 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 19:12:29,673 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 19:22:29,767 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 19:32:29,773 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 19:42:29,806 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 19:52:29,834 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 20:02:29,844 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 20:12:29,868 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 20:22:29,887 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 20:32:29,899 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 20:42:29,913 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 20:52:29,926 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-16 21:02:29,945 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 18:46:20,975 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 18:46:24,706 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 18:46:25,504 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 18:46:26,275 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-18 18:46:32,689 INFO [snowgui] [BUTTON] Config
+2025-09-18 18:46:37,154 INFO [snowgui] Exiting.
+2025-09-18 18:47:19,939 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 18:47:23,667 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 18:47:24,087 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 18:47:27,109 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 18:47:30,002 INFO [snowgui] Exiting.
+2025-09-18 18:50:22,745 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 18:50:26,473 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 18:50:26,878 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 18:50:31,252 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 18:50:32,578 INFO [snowgui] [BUTTON] Back
+2025-09-18 18:51:01,573 INFO [snowgui] Exiting.
+2025-09-18 18:51:04,352 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 18:51:08,079 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 18:51:08,563 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 18:51:11,117 INFO [snowgui] Touch @ (175, 117)
+2025-09-18 18:51:11,119 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 19:01:08,657 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:06:03,454 INFO [snowgui] Exiting.
+2025-09-18 19:06:06,412 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 19:06:10,144 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 19:06:10,249 ERROR [snowgui] Unhandled exception
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/dist-packages/PIL/ImageDraw.py", line 1006, in Draw
+    return getattr(im, "getdraw")(mode)
+AttributeError: 'ImageDraw' object has no attribute 'getdraw'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/snowdev/snowgui/snowgui.py", line 2000, in <module>
+    main()
+  File "/home/snowdev/snowgui/snowgui.py", line 1924, in main
+    screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill))
+  File "/home/snowdev/snowgui/snowgui.py", line 1853, in set_screen
+    self.redraw()
+  File "/home/snowdev/snowgui/snowgui.py", line 1868, in redraw
+    draw_debug_badge(draw, pos="top-right")
+  File "/home/snowdev/snowgui/debug_hud.py", line 157, in draw_debug_badge
+    draw = ImageDraw.Draw(img, "RGBA")
+  File "/usr/local/lib/python3.9/dist-packages/PIL/ImageDraw.py", line 1008, in Draw
+    return ImageDraw(im, mode)
+  File "/usr/local/lib/python3.9/dist-packages/PIL/ImageDraw.py", line 77, in __init__
+    im.load()
+AttributeError: 'ImageDraw' object has no attribute 'load'
+2025-09-18 19:06:45,384 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 19:06:49,125 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 19:06:49,603 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:06:53,079 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 19:06:54,401 INFO [snowgui] [BUTTON] Back
+2025-09-18 19:06:55,100 INFO [snowgui] [BUTTON] Avy Conditions
+2025-09-18 19:06:55,949 INFO [snowgui] [BUTTON] Back
+2025-09-18 19:06:58,411 INFO [snowgui] Exiting.
+2025-09-18 19:08:47,993 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 19:08:51,720 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 19:08:52,144 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:08:53,003 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 19:09:34,490 INFO [snowgui] Exiting.
+2025-09-18 19:09:37,879 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-18 19:09:41,607 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-18 19:09:42,018 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:09:43,793 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 19:11:45,359 INFO [snowgui] [BUTTON] Back
+2025-09-18 19:11:46,755 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 19:11:56,173 INFO [snowgui] [BUTTON] Back
+2025-09-18 19:11:57,643 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 19:12:03,367 INFO [snowgui] [BUTTON] Back
+2025-09-18 19:12:04,328 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-18 19:19:42,062 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:29:42,104 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:39:42,119 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:49:42,138 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-18 19:59:42,153 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 08:59:33,216 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-19 08:59:36,950 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-19 08:59:37,356 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 08:59:37,375 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-19 08:59:40,483 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-19 09:00:11,359 INFO [snowgui] Exiting.
+2025-09-19 09:02:30,293 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-19 09:02:34,020 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-19 09:02:34,431 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:02:39,663 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-19 09:02:40,656 INFO [snowgui] [BUTTON] Back
+2025-09-19 09:02:41,821 INFO [snowgui] [BUTTON] Avy Conditions
+2025-09-19 09:02:42,684 INFO [snowgui] [BUTTON] Back
+2025-09-19 09:03:11,016 INFO [snowgui] Exiting.
+2025-09-19 09:03:13,980 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-19 09:03:17,707 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-19 09:03:18,183 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:03:25,959 INFO [snowgui] [BUTTON] Avy Conditions
+2025-09-19 09:03:27,227 INFO [snowgui] [BUTTON] Back
+2025-09-19 09:03:28,160 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-19 09:03:30,637 INFO [snowgui] [BUTTON] Back
+2025-09-19 09:03:36,658 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-19 09:03:37,751 INFO [snowgui] [BUTTON] Back
+2025-09-19 09:03:58,954 INFO [snowgui] Exiting.
+2025-09-19 09:13:13,618 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-19 09:13:17,346 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-19 09:13:17,830 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:16:19,992 INFO [snowgui] Exiting.
+2025-09-19 09:16:22,889 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-19 09:16:26,616 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-19 09:16:27,096 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:26:27,149 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:36:27,191 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:46:27,232 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:46:32,318 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-19 09:46:36,053 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-19 09:46:36,666 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-19 09:46:52,797 INFO [snowgui] Touch @ (166, 114)
+2025-09-19 09:46:52,799 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-19 09:46:52,821 INFO [snowgui] Touch @ (167, 115)
+2025-09-19 09:46:52,822 INFO [snowgui] [BUTTON] Mountain Report
+2025-09-19 09:46:55,421 INFO [snowgui] Touch @ (170, 153)
+2025-09-19 09:46:55,438 INFO [snowgui] Touch @ (171, 153)
+2025-09-19 09:47:11,297 INFO [snowgui] Exiting.
+2025-09-19 09:48:14,673 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-19 09:48:18,490 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-19 09:48:18,985 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 10:29:08,740 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-20 10:29:12,496 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-20 10:29:12,977 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 10:29:12,998 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-20 10:29:15,062 INFO [snowgui] Touch @ (182, 190)
+2025-09-20 10:29:15,064 INFO [snowgui] [BUTTON] Config
+2025-09-20 10:29:17,194 INFO [snowgui] Touch @ (171, 227)
+2025-09-20 10:29:17,196 INFO [snowgui] [BUTTON] Set Alarm
+2025-09-20 10:29:18,824 INFO [snowgui] Touch @ (142, 160)
+2025-09-20 10:29:18,825 INFO [snowgui] [BUTTON] Minute
+2025-09-20 10:29:24,359 INFO [snowgui] Touch @ (96, 176)
+2025-09-20 10:29:24,361 INFO [snowgui] [BUTTON] [CAP]
+2025-09-20 10:29:25,429 INFO [snowgui] Touch @ (93, 178)
+2025-09-20 10:29:25,431 INFO [snowgui] [BUTTON] [LWR]
+2025-09-20 10:29:30,668 INFO [snowgui] Touch @ (26, 174)
+2025-09-20 10:29:30,670 INFO [snowgui] [BUTTON] [123]
+2025-09-20 10:29:31,519 INFO [snowgui] Touch @ (81, 71)
+2025-09-20 10:29:31,521 INFO [snowgui] [BUTTON] 3
+2025-09-20 10:29:31,522 INFO [snowgui] [Keyboard] Input now: '3'
+2025-09-20 10:29:32,053 INFO [snowgui] Touch @ (113, 69)
+2025-09-20 10:29:32,055 INFO [snowgui] [BUTTON] 4
+2025-09-20 10:29:32,056 INFO [snowgui] [Keyboard] Input now: '34'
+2025-09-20 10:29:33,068 INFO [snowgui] Touch @ (299, 183)
+2025-09-20 10:29:33,070 INFO [snowgui] [BUTTON] Enter
+2025-09-20 10:29:33,074 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-20 10:39:13,071 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 10:49:13,158 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 10:59:13,232 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 11:09:13,316 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 11:19:13,412 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 11:29:13,429 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 11:39:13,440 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-20 11:49:13,483 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-22 14:04:06,057 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-22 14:04:09,791 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-22 14:04:10,187 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-22 14:04:10,201 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-22 14:04:16,839 INFO [snowgui] Touch @ (208, 190)
+2025-09-22 14:04:16,840 INFO [snowgui] [BUTTON] Config
+2025-09-22 14:04:17,757 INFO [snowgui] Touch @ (211, 192)
+2025-09-22 14:04:17,758 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:04:19,311 INFO [snowgui] Touch @ (297, 154)
+2025-09-22 14:04:19,312 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:20,110 INFO [snowgui] Touch @ (297, 121)
+2025-09-22 14:04:20,111 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:04:20,473 INFO [snowgui] Touch @ (295, 124)
+2025-09-22 14:04:20,474 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:04:21,606 INFO [snowgui] Touch @ (296, 156)
+2025-09-22 14:04:21,607 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:21,765 INFO [snowgui] Touch @ (295, 153)
+2025-09-22 14:04:21,767 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:22,125 INFO [snowgui] Touch @ (296, 154)
+2025-09-22 14:04:22,126 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:22,392 INFO [snowgui] Touch @ (294, 159)
+2025-09-22 14:04:22,394 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:22,756 INFO [snowgui] Touch @ (293, 157)
+2025-09-22 14:04:22,757 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:23,017 INFO [snowgui] Touch @ (292, 158)
+2025-09-22 14:04:23,018 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:23,380 INFO [snowgui] Touch @ (290, 158)
+2025-09-22 14:04:23,382 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:23,642 INFO [snowgui] Touch @ (290, 159)
+2025-09-22 14:04:23,643 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:28,742 INFO [snowgui] Touch @ (293, 120)
+2025-09-22 14:04:28,743 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:04:29,642 INFO [snowgui] Touch @ (291, 216)
+2025-09-22 14:04:29,643 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:04:29,645 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:04:29,668 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:04:31,247 INFO [snowgui] Touch @ (211, 195)
+2025-09-22 14:04:31,249 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:04:32,163 INFO [snowgui] Touch @ (293, 121)
+2025-09-22 14:04:32,164 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:04:32,860 INFO [snowgui] Touch @ (292, 158)
+2025-09-22 14:04:32,861 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:33,121 INFO [snowgui] Touch @ (292, 157)
+2025-09-22 14:04:33,122 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:33,411 INFO [snowgui] Touch @ (293, 157)
+2025-09-22 14:04:33,412 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:33,672 INFO [snowgui] Touch @ (294, 157)
+2025-09-22 14:04:33,674 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:33,935 INFO [snowgui] Touch @ (295, 158)
+2025-09-22 14:04:33,936 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:34,203 INFO [snowgui] Touch @ (295, 157)
+2025-09-22 14:04:34,204 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:34,465 INFO [snowgui] Touch @ (293, 164)
+2025-09-22 14:04:34,466 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:04:34,828 INFO [snowgui] Touch @ (293, 127)
+2025-09-22 14:04:34,829 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:04:35,089 INFO [snowgui] Touch @ (296, 116)
+2025-09-22 14:04:35,090 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:04:35,249 INFO [snowgui] Touch @ (297, 118)
+2025-09-22 14:04:35,250 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:03,688 INFO [snowgui] Touch @ (290, 210)
+2025-09-22 14:05:03,690 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:05:03,692 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:05:03,714 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:05:04,574 INFO [snowgui] Touch @ (197, 190)
+2025-09-22 14:05:04,575 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:05:05,518 INFO [snowgui] Touch @ (295, 152)
+2025-09-22 14:05:05,519 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:05,677 INFO [snowgui] Touch @ (294, 153)
+2025-09-22 14:05:05,679 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:05,935 INFO [snowgui] Touch @ (297, 158)
+2025-09-22 14:05:05,937 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:06,197 INFO [snowgui] Touch @ (299, 123)
+2025-09-22 14:05:06,588 INFO [snowgui] Touch @ (299, 118)
+2025-09-22 14:05:06,746 INFO [snowgui] Touch @ (303, 119)
+2025-09-22 14:05:07,267 INFO [snowgui] Touch @ (292, 118)
+2025-09-22 14:05:07,268 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:07,528 INFO [snowgui] Touch @ (293, 119)
+2025-09-22 14:05:07,530 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:07,688 INFO [snowgui] Touch @ (292, 118)
+2025-09-22 14:05:07,689 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:08,047 INFO [snowgui] Touch @ (294, 160)
+2025-09-22 14:05:08,048 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:08,308 INFO [snowgui] Touch @ (295, 154)
+2025-09-22 14:05:08,310 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:08,570 INFO [snowgui] Touch @ (292, 153)
+2025-09-22 14:05:08,571 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:08,831 INFO [snowgui] Touch @ (289, 158)
+2025-09-22 14:05:08,832 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:28,455 INFO [snowgui] Touch @ (295, 211)
+2025-09-22 14:05:28,457 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:05:28,459 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:05:28,481 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:05:29,238 INFO [snowgui] Touch @ (201, 194)
+2025-09-22 14:05:29,239 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:05:34,847 INFO [snowgui] Touch @ (304, 153)
+2025-09-22 14:05:35,005 INFO [snowgui] Touch @ (303, 153)
+2025-09-22 14:05:35,262 INFO [snowgui] Touch @ (294, 158)
+2025-09-22 14:05:35,263 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:35,755 INFO [snowgui] Touch @ (296, 117)
+2025-09-22 14:05:35,757 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:36,017 INFO [snowgui] Touch @ (294, 122)
+2025-09-22 14:05:36,018 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:36,408 INFO [snowgui] Touch @ (297, 120)
+2025-09-22 14:05:36,410 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:36,975 INFO [snowgui] Touch @ (230, 159)
+2025-09-22 14:05:37,390 INFO [snowgui] Touch @ (230, 156)
+2025-09-22 14:05:37,752 INFO [snowgui] Touch @ (298, 119)
+2025-09-22 14:05:37,753 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:38,013 INFO [snowgui] Touch @ (297, 116)
+2025-09-22 14:05:38,015 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:38,275 INFO [snowgui] Touch @ (301, 116)
+2025-09-22 14:05:38,535 INFO [snowgui] Touch @ (292, 155)
+2025-09-22 14:05:38,536 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:38,694 INFO [snowgui] Touch @ (292, 158)
+2025-09-22 14:05:38,695 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:38,849 INFO [snowgui] Touch @ (294, 160)
+2025-09-22 14:05:38,850 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:39,111 INFO [snowgui] Touch @ (297, 153)
+2025-09-22 14:05:39,112 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:39,270 INFO [snowgui] Touch @ (296, 153)
+2025-09-22 14:05:39,271 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:39,861 INFO [snowgui] Touch @ (163, 162)
+2025-09-22 14:05:40,121 INFO [snowgui] Touch @ (170, 155)
+2025-09-22 14:05:40,784 INFO [snowgui] Touch @ (295, 116)
+2025-09-22 14:05:40,785 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:41,045 INFO [snowgui] Touch @ (295, 120)
+2025-09-22 14:05:41,046 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:41,306 INFO [snowgui] Touch @ (295, 114)
+2025-09-22 14:05:41,307 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:41,930 INFO [snowgui] Touch @ (293, 152)
+2025-09-22 14:05:41,931 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:42,452 INFO [snowgui] Touch @ (295, 156)
+2025-09-22 14:05:42,453 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:42,713 INFO [snowgui] Touch @ (292, 155)
+2025-09-22 14:05:42,714 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:42,975 INFO [snowgui] Touch @ (298, 119)
+2025-09-22 14:05:42,976 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:43,260 INFO [snowgui] Touch @ (297, 119)
+2025-09-22 14:05:43,262 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:43,522 INFO [snowgui] Touch @ (295, 117)
+2025-09-22 14:05:43,523 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:43,783 INFO [snowgui] Touch @ (293, 119)
+2025-09-22 14:05:43,784 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:44,146 INFO [snowgui] Touch @ (292, 154)
+2025-09-22 14:05:44,147 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:44,408 INFO [snowgui] Touch @ (297, 152)
+2025-09-22 14:05:44,409 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:44,669 INFO [snowgui] Touch @ (294, 155)
+2025-09-22 14:05:44,670 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:44,828 INFO [snowgui] Touch @ (295, 153)
+2025-09-22 14:05:44,829 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:45,085 INFO [snowgui] Touch @ (298, 150)
+2025-09-22 14:05:45,086 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:45,753 INFO [snowgui] Touch @ (295, 210)
+2025-09-22 14:05:45,754 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:05:45,757 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:05:45,778 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:05:46,545 INFO [snowgui] Touch @ (208, 194)
+2025-09-22 14:05:46,546 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:05:47,362 INFO [snowgui] Touch @ (297, 147)
+2025-09-22 14:05:47,364 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:47,522 INFO [snowgui] Touch @ (290, 156)
+2025-09-22 14:05:47,523 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:47,677 INFO [snowgui] Touch @ (294, 153)
+2025-09-22 14:05:47,678 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:48,036 INFO [snowgui] Touch @ (291, 125)
+2025-09-22 14:05:48,037 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:48,297 INFO [snowgui] Touch @ (296, 118)
+2025-09-22 14:05:48,298 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:48,558 INFO [snowgui] Touch @ (296, 121)
+2025-09-22 14:05:48,559 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:05:49,023 INFO [snowgui] Touch @ (295, 155)
+2025-09-22 14:05:49,024 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:49,280 INFO [snowgui] Touch @ (296, 157)
+2025-09-22 14:05:49,281 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:49,445 INFO [snowgui] Touch @ (295, 153)
+2025-09-22 14:05:49,446 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:05:49,705 INFO [snowgui] Touch @ (293, 156)
+2025-09-22 14:05:49,707 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:15,910 INFO [snowgui] Touch @ (291, 213)
+2025-09-22 14:06:15,911 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:06:15,913 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:06:15,935 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:06:17,000 INFO [snowgui] Touch @ (218, 192)
+2025-09-22 14:06:17,001 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:06:20,184 INFO [snowgui] Touch @ (301, 154)
+2025-09-22 14:06:20,343 INFO [snowgui] Touch @ (299, 155)
+2025-09-22 14:06:20,599 INFO [snowgui] Touch @ (294, 155)
+2025-09-22 14:06:20,601 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:21,194 INFO [snowgui] Touch @ (293, 121)
+2025-09-22 14:06:21,196 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:21,593 INFO [snowgui] Touch @ (294, 121)
+2025-09-22 14:06:21,594 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:21,752 INFO [snowgui] Touch @ (293, 120)
+2025-09-22 14:06:21,753 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:22,009 INFO [snowgui] Touch @ (293, 120)
+2025-09-22 14:06:22,010 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:22,368 INFO [snowgui] Touch @ (294, 156)
+2025-09-22 14:06:22,369 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:22,629 INFO [snowgui] Touch @ (295, 157)
+2025-09-22 14:06:22,630 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:22,788 INFO [snowgui] Touch @ (292, 159)
+2025-09-22 14:06:22,789 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:23,045 INFO [snowgui] Touch @ (292, 159)
+2025-09-22 14:06:23,047 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:23,408 INFO [snowgui] Touch @ (291, 214)
+2025-09-22 14:06:23,410 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:06:23,412 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:06:23,434 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:06:23,685 INFO [snowgui] Touch @ (292, 208)
+2025-09-22 14:06:23,686 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:06:25,826 INFO [snowgui] Touch @ (202, 194)
+2025-09-22 14:06:25,827 INFO [snowgui] [BUTTON] Config
+2025-09-22 14:06:27,184 INFO [snowgui] Touch @ (191, 192)
+2025-09-22 14:06:27,185 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:06:28,332 INFO [snowgui] Touch @ (294, 156)
+2025-09-22 14:06:28,334 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:28,492 INFO [snowgui] Touch @ (291, 153)
+2025-09-22 14:06:28,493 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:28,647 INFO [snowgui] Touch @ (290, 154)
+2025-09-22 14:06:28,648 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:28,806 INFO [snowgui] Touch @ (294, 156)
+2025-09-22 14:06:28,807 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:28,962 INFO [snowgui] Touch @ (295, 154)
+2025-09-22 14:06:28,963 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:29,121 INFO [snowgui] Touch @ (295, 151)
+2025-09-22 14:06:29,122 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:29,378 INFO [snowgui] Touch @ (292, 119)
+2025-09-22 14:06:29,379 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:29,639 INFO [snowgui] Touch @ (295, 117)
+2025-09-22 14:06:29,640 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:29,900 INFO [snowgui] Touch @ (292, 119)
+2025-09-22 14:06:29,901 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:30,393 INFO [snowgui] Touch @ (294, 125)
+2025-09-22 14:06:30,395 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:30,654 INFO [snowgui] Touch @ (294, 124)
+2025-09-22 14:06:30,656 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:30,813 INFO [snowgui] Touch @ (291, 121)
+2025-09-22 14:06:30,814 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:31,070 INFO [snowgui] Touch @ (295, 123)
+2025-09-22 14:06:31,072 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:06:31,328 INFO [snowgui] Touch @ (296, 149)
+2025-09-22 14:06:31,329 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:31,617 INFO [snowgui] Touch @ (297, 152)
+2025-09-22 14:06:31,618 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:31,878 INFO [snowgui] Touch @ (295, 157)
+2025-09-22 14:06:31,879 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:32,037 INFO [snowgui] Touch @ (297, 156)
+2025-09-22 14:06:32,038 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:32,297 INFO [snowgui] Touch @ (297, 154)
+2025-09-22 14:06:32,299 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:06:32,661 INFO [snowgui] Touch @ (295, 207)
+2025-09-22 14:06:32,662 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:06:32,664 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:06:32,686 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:07:38,234 INFO [snowgui] Exiting.
+2025-09-22 14:11:27,721 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-22 14:11:31,454 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-22 14:11:31,940 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-22 14:11:33,715 INFO [snowgui] Touch @ (179, 193)
+2025-09-22 14:11:33,716 INFO [snowgui] [BUTTON] Config
+2025-09-22 14:11:34,525 INFO [snowgui] Touch @ (190, 197)
+2025-09-22 14:11:34,527 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:11:35,641 INFO [snowgui] Touch @ (299, 159)
+2025-09-22 14:11:35,800 INFO [snowgui] Touch @ (297, 160)
+2025-09-22 14:11:35,801 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:11:35,955 INFO [snowgui] Touch @ (297, 156)
+2025-09-22 14:11:35,957 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:11:36,217 INFO [snowgui] Touch @ (294, 160)
+2025-09-22 14:11:36,218 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:11:36,479 INFO [snowgui] Touch @ (295, 118)
+2025-09-22 14:11:36,480 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:11:36,972 INFO [snowgui] Touch @ (294, 119)
+2025-09-22 14:11:36,973 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:11:37,364 INFO [snowgui] Touch @ (294, 155)
+2025-09-22 14:11:37,365 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:11:37,755 INFO [snowgui] Touch @ (293, 158)
+2025-09-22 14:11:37,756 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:11:38,932 INFO [snowgui] Touch @ (158, 226)
+2025-09-22 14:11:38,933 INFO [snowgui] [BUTTON] PASSWORD
+2025-09-22 14:11:41,823 INFO [snowgui] Touch @ (92, 181)
+2025-09-22 14:11:41,825 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:11:42,788 INFO [snowgui] Touch @ (285, 66)
+2025-09-22 14:11:42,789 INFO [snowgui] [BUTTON] O
+2025-09-22 14:11:42,790 INFO [snowgui] [Keyboard] Input now: 'O'
+2025-09-22 14:11:44,332 INFO [snowgui] Touch @ (80, 180)
+2025-09-22 14:11:44,333 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:11:45,093 INFO [snowgui] Touch @ (120, 136)
+2025-09-22 14:11:45,094 INFO [snowgui] [BUTTON] v
+2025-09-22 14:11:45,095 INFO [snowgui] [Keyboard] Input now: 'Ov'
+2025-09-22 14:11:45,852 INFO [snowgui] Touch @ (25, 184)
+2025-09-22 14:11:45,852 INFO [snowgui] [BUTTON] [123]
+2025-09-22 14:11:46,784 INFO [snowgui] Touch @ (84, 70)
+2025-09-22 14:11:46,786 INFO [snowgui] [BUTTON] 3
+2025-09-22 14:11:46,787 INFO [snowgui] [Keyboard] Input now: 'Ov3'
+2025-09-22 14:11:48,231 INFO [snowgui] Touch @ (38, 179)
+2025-09-22 14:11:48,232 INFO [snowgui] [BUTTON] [ABC]
+2025-09-22 14:11:50,198 INFO [snowgui] Touch @ (120, 72)
+2025-09-22 14:11:50,199 INFO [snowgui] [BUTTON] r
+2025-09-22 14:11:50,200 INFO [snowgui] [Keyboard] Input now: 'Ov3r'
+2025-09-22 14:11:51,134 INFO [snowgui] Touch @ (97, 177)
+2025-09-22 14:11:51,136 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:11:51,794 INFO [snowgui] Touch @ (150, 106)
+2025-09-22 14:11:51,795 INFO [snowgui] [BUTTON] G
+2025-09-22 14:11:51,795 INFO [snowgui] [Keyboard] Input now: 'Ov3rG'
+2025-09-22 14:11:52,500 INFO [snowgui] Touch @ (47, 187)
+2025-09-22 14:11:52,502 INFO [snowgui] [BUTTON] [123]
+2025-09-22 14:11:53,655 INFO [snowgui] Touch @ (39, 184)
+2025-09-22 14:11:53,656 INFO [snowgui] [BUTTON] [ABC]
+2025-09-22 14:11:54,811 INFO [snowgui] Touch @ (93, 177)
+2025-09-22 14:11:54,812 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:11:55,879 INFO [snowgui] Touch @ (119, 69)
+2025-09-22 14:11:55,881 INFO [snowgui] [BUTTON] r
+2025-09-22 14:11:55,882 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr'
+2025-09-22 14:11:57,426 INFO [snowgui] Touch @ (40, 173)
+2025-09-22 14:11:57,427 INFO [snowgui] [BUTTON] [123]
+2025-09-22 14:11:59,120 INFO [snowgui] Touch @ (318, 71)
+2025-09-22 14:11:59,121 INFO [snowgui] [BUTTON] 0
+2025-09-22 14:11:59,127 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr0'
+2025-09-22 14:12:01,722 INFO [snowgui] Touch @ (37, 171)
+2025-09-22 14:12:01,723 INFO [snowgui] [BUTTON] [ABC]
+2025-09-22 14:12:02,875 INFO [snowgui] Touch @ (53, 70)
+2025-09-22 14:12:02,876 INFO [snowgui] [BUTTON] w
+2025-09-22 14:12:02,877 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr0w'
+2025-09-22 14:12:05,394 INFO [snowgui] Touch @ (300, 179)
+2025-09-22 14:12:05,395 INFO [snowgui] [BUTTON] Enter
+2025-09-22 14:12:05,396 INFO [snowgui] [WiFi] PASSWORD set.
+2025-09-22 14:12:07,483 INFO [snowgui] Touch @ (291, 213)
+2025-09-22 14:12:07,485 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:12:07,487 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:12:07,564 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:12:32,713 INFO [snowgui] Exiting.
+2025-09-22 14:28:29,152 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-22 14:28:32,879 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-22 14:28:33,264 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-22 14:28:35,438 INFO [snowgui] Touch @ (188, 194)
+2025-09-22 14:28:35,439 INFO [snowgui] [BUTTON] Config
+2025-09-22 14:28:36,901 INFO [snowgui] Touch @ (187, 199)
+2025-09-22 14:28:36,903 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:28:40,341 INFO [snowgui] Touch @ (293, 159)
+2025-09-22 14:28:40,342 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:28:40,343 INFO [snowgui] [WiFi] SSID changed to: DIRECT-sc-EPSON-ET-3850 Series
+2025-09-22 14:28:41,500 INFO [snowgui] Touch @ (292, 157)
+2025-09-22 14:28:41,501 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:28:41,502 INFO [snowgui] [WiFi] SSID changed to: SHAW-0130
+2025-09-22 14:28:42,213 INFO [snowgui] Touch @ (294, 163)
+2025-09-22 14:28:42,220 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:28:42,222 INFO [snowgui] [WiFi] SSID changed to: SHAW-CFED
+2025-09-22 14:28:42,590 INFO [snowgui] Touch @ (292, 161)
+2025-09-22 14:28:42,591 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:28:42,592 INFO [snowgui] [WiFi] SSID changed to: ThornnetMobile
+2025-09-22 14:28:45,235 INFO [snowgui] Touch @ (157, 229)
+2025-09-22 14:28:45,236 INFO [snowgui] [BUTTON] PASSWORD
+2025-09-22 14:28:48,544 INFO [snowgui] Touch @ (98, 180)
+2025-09-22 14:28:48,545 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:28:49,508 INFO [snowgui] Touch @ (288, 72)
+2025-09-22 14:28:49,510 INFO [snowgui] [BUTTON] O
+2025-09-22 14:28:49,511 INFO [snowgui] [Keyboard] Input now: 'O'
+2025-09-22 14:28:51,187 INFO [snowgui] Touch @ (85, 185)
+2025-09-22 14:28:51,188 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:28:51,849 INFO [snowgui] Touch @ (114, 143)
+2025-09-22 14:28:51,850 INFO [snowgui] [BUTTON] v
+2025-09-22 14:28:51,851 INFO [snowgui] [Keyboard] Input now: 'Ov'
+2025-09-22 14:28:52,454 INFO [snowgui] Touch @ (33, 179)
+2025-09-22 14:28:52,456 INFO [snowgui] [BUTTON] [123]
+2025-09-22 14:28:53,204 INFO [snowgui] Touch @ (83, 74)
+2025-09-22 14:28:53,205 INFO [snowgui] [BUTTON] 3
+2025-09-22 14:28:53,206 INFO [snowgui] [Keyboard] Input now: 'Ov3'
+2025-09-22 14:28:54,264 INFO [snowgui] Touch @ (30, 188)
+2025-09-22 14:28:54,266 INFO [snowgui] [BUTTON] [ABC]
+2025-09-22 14:28:55,852 INFO [snowgui] Touch @ (113, 75)
+2025-09-22 14:28:55,853 INFO [snowgui] [BUTTON] r
+2025-09-22 14:28:55,854 INFO [snowgui] [Keyboard] Input now: 'Ov3r'
+2025-09-22 14:28:56,679 INFO [snowgui] Touch @ (97, 182)
+2025-09-22 14:28:56,681 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:28:57,341 INFO [snowgui] Touch @ (150, 107)
+2025-09-22 14:28:57,342 INFO [snowgui] [BUTTON] G
+2025-09-22 14:28:57,342 INFO [snowgui] [Keyboard] Input now: 'Ov3rG'
+2025-09-22 14:28:58,047 INFO [snowgui] Touch @ (97, 186)
+2025-09-22 14:28:58,049 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:28:58,942 INFO [snowgui] Touch @ (117, 69)
+2025-09-22 14:28:58,943 INFO [snowgui] [BUTTON] r
+2025-09-22 14:28:58,944 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr'
+2025-09-22 14:28:59,788 INFO [snowgui] Touch @ (39, 178)
+2025-09-22 14:28:59,790 INFO [snowgui] [BUTTON] [123]
+2025-09-22 14:29:00,944 INFO [snowgui] Touch @ (312, 68)
+2025-09-22 14:29:00,945 INFO [snowgui] [BUTTON] 0
+2025-09-22 14:29:00,946 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr0'
+2025-09-22 14:29:03,001 INFO [snowgui] Touch @ (34, 187)
+2025-09-22 14:29:03,002 INFO [snowgui] [BUTTON] [ABC]
+2025-09-22 14:29:03,951 INFO [snowgui] Touch @ (53, 72)
+2025-09-22 14:29:03,952 INFO [snowgui] [BUTTON] w
+2025-09-22 14:29:03,953 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr0w'
+2025-09-22 14:29:05,294 INFO [snowgui] Touch @ (302, 180)
+2025-09-22 14:29:05,295 INFO [snowgui] [BUTTON] Enter
+2025-09-22 14:29:05,296 INFO [snowgui] [WiFi] PASSWORD set.
+2025-09-22 14:29:09,114 INFO [snowgui] Touch @ (293, 213)
+2025-09-22 14:29:09,115 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:29:09,118 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:29:09,204 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:36:36,959 INFO [snowgui] Touch @ (183, 201)
+2025-09-22 14:36:37,630 INFO [snowgui] Touch @ (175, 191)
+2025-09-22 14:36:37,631 INFO [snowgui] [BUTTON] Config WiFi
+2025-09-22 14:36:41,399 INFO [snowgui] Touch @ (293, 157)
+2025-09-22 14:36:41,401 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:36:41,401 INFO [snowgui] [WiFi] SSID changed to: DIRECT-sc-EPSON-ET-3850 Series
+2025-09-22 14:36:41,982 INFO [snowgui] Touch @ (291, 120)
+2025-09-22 14:36:41,983 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:36:41,989 INFO [snowgui] [WiFi] SSID changed to: ThornNet
+2025-09-22 14:36:42,569 INFO [snowgui] Touch @ (297, 152)
+2025-09-22 14:36:42,570 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:36:42,571 INFO [snowgui] [WiFi] SSID changed to: DIRECT-sc-EPSON-ET-3850 Series
+2025-09-22 14:36:42,947 INFO [snowgui] Touch @ (296, 162)
+2025-09-22 14:36:42,949 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:36:42,949 INFO [snowgui] [WiFi] SSID changed to: SHAW-0130
+2025-09-22 14:36:43,326 INFO [snowgui] Touch @ (296, 161)
+2025-09-22 14:36:43,327 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:36:43,328 INFO [snowgui] [WiFi] SSID changed to: ThornnetMobile
+2025-09-22 14:36:43,705 INFO [snowgui] Touch @ (297, 161)
+2025-09-22 14:36:43,706 INFO [snowgui] [BUTTON] SSID_DOWN
+2025-09-22 14:36:43,707 INFO [snowgui] [WiFi] SSID changed to: SHAW-CFED
+2025-09-22 14:36:44,622 INFO [snowgui] Touch @ (293, 117)
+2025-09-22 14:36:44,623 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:36:44,624 INFO [snowgui] [WiFi] SSID changed to: ThornnetMobile
+2025-09-22 14:36:45,030 INFO [snowgui] Touch @ (296, 118)
+2025-09-22 14:36:45,031 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:36:45,032 INFO [snowgui] [WiFi] SSID changed to: SHAW-0130
+2025-09-22 14:36:45,539 INFO [snowgui] Touch @ (294, 121)
+2025-09-22 14:36:45,540 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:36:45,541 INFO [snowgui] [WiFi] SSID changed to: DIRECT-sc-EPSON-ET-3850 Series
+2025-09-22 14:36:46,020 INFO [snowgui] Touch @ (293, 118)
+2025-09-22 14:36:46,021 INFO [snowgui] [BUTTON] SSID_UP
+2025-09-22 14:36:46,022 INFO [snowgui] [WiFi] SSID changed to: ThornNet
+2025-09-22 14:36:47,645 INFO [snowgui] Touch @ (168, 222)
+2025-09-22 14:36:47,647 INFO [snowgui] [BUTTON] PASSWORD
+2025-09-22 14:36:49,722 INFO [snowgui] Touch @ (82, 177)
+2025-09-22 14:36:49,723 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:36:50,583 INFO [snowgui] Touch @ (281, 71)
+2025-09-22 14:36:50,585 INFO [snowgui] [BUTTON] O
+2025-09-22 14:36:50,586 INFO [snowgui] [Keyboard] Input now: 'O'
+2025-09-22 14:36:51,722 INFO [snowgui] Touch @ (94, 182)
+2025-09-22 14:36:51,723 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:36:52,698 INFO [snowgui] Touch @ (115, 145)
+2025-09-22 14:36:52,699 INFO [snowgui] [BUTTON] v
+2025-09-22 14:36:52,704 INFO [snowgui] [Keyboard] Input now: 'Ov'
+2025-09-22 14:36:53,941 INFO [snowgui] Touch @ (36, 179)
+2025-09-22 14:36:53,942 INFO [snowgui] [BUTTON] [123]
+2025-09-22 14:36:54,893 INFO [snowgui] Touch @ (78, 70)
+2025-09-22 14:36:54,894 INFO [snowgui] [BUTTON] 3
+2025-09-22 14:36:54,895 INFO [snowgui] [Keyboard] Input now: 'Ov3'
+2025-09-22 14:36:56,237 INFO [snowgui] Touch @ (84, 183)
+2025-09-22 14:36:56,239 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:36:56,974 INFO [snowgui] Touch @ (37, 183)
+2025-09-22 14:36:56,975 INFO [snowgui] [BUTTON] [ABC]
+2025-09-22 14:36:58,503 INFO [snowgui] Touch @ (89, 186)
+2025-09-22 14:36:58,504 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:36:59,671 INFO [snowgui] Touch @ (116, 72)
+2025-09-22 14:36:59,672 INFO [snowgui] [BUTTON] r
+2025-09-22 14:36:59,673 INFO [snowgui] [Keyboard] Input now: 'Ov3r'
+2025-09-22 14:37:00,504 INFO [snowgui] Touch @ (87, 184)
+2025-09-22 14:37:00,506 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:37:01,163 INFO [snowgui] Touch @ (151, 105)
+2025-09-22 14:37:01,164 INFO [snowgui] [BUTTON] G
+2025-09-22 14:37:01,165 INFO [snowgui] [Keyboard] Input now: 'Ov3rG'
+2025-09-22 14:37:01,868 INFO [snowgui] Touch @ (91, 184)
+2025-09-22 14:37:01,869 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:37:02,429 INFO [snowgui] Touch @ (115, 65)
+2025-09-22 14:37:02,430 INFO [snowgui] [BUTTON] r
+2025-09-22 14:37:02,431 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr'
+2025-09-22 14:37:03,134 INFO [snowgui] Touch @ (30, 184)
+2025-09-22 14:37:03,135 INFO [snowgui] [BUTTON] [123]
+2025-09-22 14:37:04,086 INFO [snowgui] Touch @ (319, 65)
+2025-09-22 14:37:04,087 INFO [snowgui] [BUTTON] 0
+2025-09-22 14:37:04,088 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr0'
+2025-09-22 14:37:05,941 INFO [snowgui] Touch @ (33, 182)
+2025-09-22 14:37:05,943 INFO [snowgui] [BUTTON] [ABC]
+2025-09-22 14:37:06,891 INFO [snowgui] Touch @ (92, 182)
+2025-09-22 14:37:06,892 INFO [snowgui] [BUTTON] [CAP]
+2025-09-22 14:37:07,350 INFO [snowgui] Touch @ (94, 183)
+2025-09-22 14:37:07,350 INFO [snowgui] [BUTTON] [LWR]
+2025-09-22 14:37:07,983 INFO [snowgui] Touch @ (49, 65)
+2025-09-22 14:37:07,985 INFO [snowgui] [BUTTON] w
+2025-09-22 14:37:07,985 INFO [snowgui] [Keyboard] Input now: 'Ov3rGr0w'
+2025-09-22 14:37:09,334 INFO [snowgui] Touch @ (299, 180)
+2025-09-22 14:37:09,340 INFO [snowgui] [BUTTON] Enter
+2025-09-22 14:37:09,341 INFO [snowgui] [WiFi] PASSWORD set.
+2025-09-22 14:37:11,426 INFO [snowgui] Touch @ (293, 209)
+2025-09-22 14:37:11,427 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:37:11,429 INFO [snowgui] [WiFi] wpa_supplicant.conf saved.
+2025-09-22 14:37:11,506 INFO [snowgui] [WiFi] wpa_cli reconfigure succeeded!
+2025-09-22 14:37:55,143 INFO [snowgui] Touch @ (299, 220)
+2025-09-22 14:37:55,144 INFO [snowgui] [BUTTON] Back
+2025-09-22 14:38:33,343 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-26 13:15:27,814 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-26 13:15:31,662 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-26 13:15:32,070 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10
+2025-09-26 13:15:32,088 INFO [snowgui] [Alarm] alarm.conf saved.
+2025-09-26 13:15:55,201 INFO [snowgui] Exiting.
+2025-09-26 13:19:07,332 INFO [snowgui] [LED] WS2812 initialized on GPIO13 (PWM1/channel 1).
+2025-09-26 13:19:11,160 INFO [snowgui] [Hill] Reloaded: Sun Peaks
+2025-09-26 13:19:11,678 INFO [snowgui] [Snow] Sun Peaks: 24h new = 10

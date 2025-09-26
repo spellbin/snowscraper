@@ -9,9 +9,9 @@ import daemon  # pip install python-daemon
 
 # Configuration
 RESTART_DELAY = 5
-SCRIPT_PATH = "./snowgui.py"  # Absolute path recommended
-LOG_FILE = "logs/watchdog.log"  # System log location
-HEARTBEAT_FILE = "./heartbeat.txt"
+SCRIPT_PATH = "/home/pi/snowscraper/snowgui.py"  # Absolute path recommended
+LOG_FILE = "/home/pi/snowscraper/logs/watchdog.log"  # System log location
+HEARTBEAT_FILE = "/home/pi/snowscraper/heartbeat.txt"
 HEARTBEAT_TIMEOUT = 60  # seconds
 MAX_MEMORY_MB = 250  # Maximum allowed memory in MB
 CHECK_INTERVAL = 30  # seconds between checks
@@ -36,7 +36,7 @@ class WatchdogDaemon:
 
     def start_process(self):
         """Start the monitored process and log its output"""
-        log_file = open("./logs/snowgui.log", "a")  # File to store output
+        log_file = open("/home/pi/snowscraper/logs/snowgui.log", "a")  # File to store output
         self.process = subprocess.Popen(["python3", SCRIPT_PATH])
         logging.info(f"Started process with PID {self.process.pid}, logging to logs/snowgui.log")
         return self.process
