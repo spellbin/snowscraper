@@ -8,7 +8,7 @@ Target: Raspberry Pi Zero 2 W, Python 3.9
 - Reads raw touch from XPT2046 on SPI bus 0, device 1 (same as your code).
 - Draws prompts on the ILI9341 via luma.lcd exactly like the app.
 - Writes JSON: {"x_min": ..., "x_max": ..., "y_min": ..., "y_max": ...}
-- Always saves to ./conf/touch_calibration.json alongside snowgui.py
+- Always saves to ./touch_calibration.json alongside snowgui.py
 """
 
 import os
@@ -39,49 +39,70 @@ LCD_ROTATE = 0  # set to 0/90/180/270 to match your Snow Scraper
 # ----------------------------
 # Touch driver (same wiring/logic as in your app)
 # ----------------------------
+try:
+    import RPi.GPIO as GPIO
+    _HAS_GPIO = True
+except Exception:
+    _HAS_GPIO = False
+
+# --- SPI Touch (XPT2046) ---
+import spidev
+try:
+    import RPi.GPIO as GPIO
+    _HAS_GPIO = True
+except Exception:
+    _HAS_GPIO = False
+
 class XPT2046:
     """
-    Raw touch reader. Reads 12-bit coordinates from XPT2046 on SPI0.1.
+    Raw touch reader. Reads 12-bit coordinates from XPT2046 on SPI0.<device>.
     """
-    def __init__(self, spi_bus=0, spi_device=1, max_speed=500_000):
+    def __init__(self, spi_bus=0, spi_device=1, max_speed=400_000, penirq_gpio=None):
         self.spi = spidev.SpiDev()
-        self.spi.open(spi_bus, spi_device)
-        self.spi.max_speed_hz = max_speed
+        self.spi.open(spi_bus, spi_device)     # set spi_device=0 if T_CS is on CE0
+        self.spi.max_speed_hz = max_speed      # 200–400 kHz is robust
         self.spi.mode = 0b00
 
-    def _read_channel(self, cmd):
-        # Send 3 bytes: command, 0x00, 0x00 -> read 12-bit value
-        resp = self.spi.xfer2([cmd, 0x00, 0x00])
-        return ((resp[1] << 8) | resp[2]) >> 4
+        self.penirq_gpio = penirq_gpio
+        if _HAS_GPIO and self.penirq_gpio is not None:
+            GPIO.setwarnings(False)
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.penirq_gpio, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # PENIRQ active-low
+
+    def _read12(self, cmd):
+        # Throw-away read to let ADC settle, then real read
+        self.spi.xfer2([cmd, 0x00, 0x00])
+        r = self.spi.xfer2([cmd, 0x00, 0x00])
+        return ((r[1] << 8) | r[2]) >> 4
+
+    def _pressed(self):
+        if not (_HAS_GPIO and self.penirq_gpio is not None):
+            return True  # fail-open if no IRQ wire yet
+        return GPIO.input(self.penirq_gpio) == 0
 
     def read_touch(self, samples=5, tolerance=50):
-        """
-        Average a handful of close-together samples. Return (x, y) or None.
-        Filters out jumps > tolerance to avoid jitter.
-        """
+        if not self._pressed():
+            return None
         readings = []
         for _ in range(samples):
-            raw_y = self._read_channel(0xD0)  # Y first on XPT2046 (cmd 0xD0)
-            raw_x = self._read_channel(0x90)  # then X (cmd 0x90)
+            raw_y = self._read12(0xD0)  # Y
+            raw_x = self._read12(0x90)  # X
             if 100 < raw_x < 4000 and 100 < raw_y < 4000:
                 readings.append((raw_x, raw_y))
-            time.sleep(0.01)
+            time.sleep(0.005)
 
         if len(readings) < 3:
             return None
-
         xs, ys = zip(*readings)
         if max(xs) - min(xs) > tolerance or max(ys) - min(ys) > tolerance:
             return None
-
-        return (sum(xs) // len(xs), sum(ys) // len(ys))
+        return (sum(xs)//len(xs), sum(ys)//len(ys))
 
     def close(self):
         try:
             self.spi.close()
         except Exception:
             pass
-
 
 # ----------------------------
 # Calibrator (same 2-point scheme & JSON format as your app)
@@ -157,7 +178,7 @@ def main():
     lcd = ili9341(serial_interface=serial, width=LCD_WIDTH, height=LCD_HEIGHT, rotate=LCD_ROTATE)
 
     # Touch
-    touch = XPT2046(spi_bus=0, spi_device=1)
+    touch = XPT2046(spi_bus=0, spi_device=1, penirq_gpio=22)
 
     try:
         calibrator = TwoPointCalibrator(lcd)
