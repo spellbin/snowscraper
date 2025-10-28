@@ -12,15 +12,17 @@ RESTART_DELAY = 5
 SCRIPT_PATH = "/home/pi/snowscraper/snowgui.py"  # Absolute path recommended
 LOG_FILE = "/home/pi/snowscraper/logs/watchdog.log"  # System log location
 HEARTBEAT_FILE = "/home/pi/snowscraper/heartbeat.txt"
-HEARTBEAT_TIMEOUT = 60  # seconds
+HEARTBEAT_TIMEOUT = 120  # seconds
 MAX_MEMORY_MB = 250  # Maximum allowed memory in MB
 CHECK_INTERVAL = 30  # seconds between checks
+INITIAL_GRACE = 90   # seconds to allow the GUI to boot and write first heartbea
 
 class WatchdogDaemon:
     def __init__(self):
         self.process = None
         self.heartbeat_file = Path(HEARTBEAT_FILE)
         self.setup_logging()
+        self.last_start_ts = 0.0
         
     def setup_logging(self):
         """Configure proper daemon logging"""
@@ -35,26 +37,33 @@ class WatchdogDaemon:
         logging.info("Initializing Watchdog Daemon")
 
     def start_process(self):
-        """Start the monitored process and log its output"""
-        log_file = open("/home/pi/snowscraper/logs/snowgui.log", "a")  # File to store output
-        self.process = subprocess.Popen(["python3", SCRIPT_PATH])
-        logging.info(f"Started process with PID {self.process.pid}, logging to logs/snowgui.log")
-        return self.process
+        """Start the monitored process and capture its output to log file."""
+        log_path = "/home/pi/snowscaper/logs/snowgui.log"
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-    def update_heartbeat(self):
-        """Update the heartbeat timestamp"""
         try:
-            with open(self.heartbeat_file, 'w') as f:
-                f.write(str(time.time()))
+            log_file = open(log_path, "a", buffering=1)  # line-buffered
+            self.process = subprocess.Popen(
+                ["python3", SCRIPT_PATH],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                close_fds=True
+            )
+            logging.info(f"Started process with PID {self.process.pid}, output → {log_path}")
+            return self.process
         except Exception as e:
-            logging.error(f"Heartbeat update failed: {e}")
+            logging.error(f"Failed to start process: {e}")
+            return None
+
 
     def check_heartbeat(self):
         """Check if process is responding via heartbeat"""
         try:
+            # If the process just started, allow a grace window for the GUI to
+            # bring up SPI/fonts/network and write its first heartbeat.
             if not self.heartbeat_file.exists():
-                return False
-            
+                # No heartbeat yet — only fail if we're past the grace window
+                return (time.time() - self.last_start_ts) <= INITIAL_GRACE
             last_modified = self.heartbeat_file.stat().st_mtime
             return (time.time() - last_modified) <= HEARTBEAT_TIMEOUT
         except Exception as e:

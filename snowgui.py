@@ -10,6 +10,7 @@ import requests
 import re
 import sys, logging
 from logging.handlers import RotatingFileHandler
+from functools import lru_cache
 from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -19,6 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 from luma.core.interface.serial import spi
 from luma.lcd.device import ili9341
 from debug_hud import draw_cpu_badge, draw_wifi_bars_badge
+from snowfall_overlay import SnowfallOverlay
 
 # ----------------------------
 # Constants & Config
@@ -33,9 +35,11 @@ GITHUB_TOKEN = None  # Optional GitHub token for private repos
 CALIBRATION_FILE = "/home/pi/snowscraper/conf/touch_calibration.json"
 HEARTBEAT_FILE = "/home/pi/snowscraper/heartbeat.txt"
 ALARM_CONF_FILE = "/home/pi/snowscraper/conf/alarm.conf"
-HEARTBEAT_INTERVAL = 30  # seconds
-DEV_MODE = True  # set True to avoid hitting live scrapers
+HEARTBEAT_INTERVAL = 10  # seconds
+DEV_MODE = False  # set True to avoid hitting live scrapers
 SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.json"
+
+print(f"[BOOT] DEV_MODE = {DEV_MODE}")
 
 # ---- Global hill singleton ---------------------------------
 hill = None  # skiHill instance; refreshed when skihill.conf changes
@@ -90,6 +94,64 @@ class _PrintToLog:
 # Send normal prints to INFO, errors/tracebacks to ERROR
 sys.stdout = _PrintToLog(logging.INFO)
 sys.stderr = _PrintToLog(logging.ERROR)
+
+# ---- Dynamic text fit helpers ----
+@lru_cache(maxsize=64)
+def _font_cached(path: str, size: int):
+    try:
+        return ImageFont.truetype(path, size)
+    except Exception:
+        return ImageFont.load_default()
+
+def _measure(draw: ImageDraw.ImageDraw, text: str, font):
+    # Returns (w, h) for the rendered text
+    # textbbox is precise; falls back to textsize if needed
+    try:
+        l, t, r, b = draw.textbbox((0, 0), text, font=font)
+        return (r - l, b - t)
+    except Exception:
+        return draw.textsize(text, font=font)
+
+def _shrink_to_fit(draw, text: str, box_w: int, box_h: int,
+                   font_path: str, min_sz: int = 10, max_sz: int = 40):
+    # Binary-search the largest size that fits
+    lo, hi = min_sz, max_sz
+    best_font, best_size = None, None
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        f = _font_cached(font_path, mid)
+        w, h = _measure(draw, text, f)
+        if w <= box_w and h <= box_h:
+            best_font, best_size = f, mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    if best_font:
+        return best_font, text
+
+    # If even min size won’t fit, ellipsize
+    f = _font_cached(font_path, min_sz)
+    s = text
+    while s and _measure(draw, s + "…", f)[0] > box_w:
+        s = s[:-1]
+    return f, (s + "…") if s else "…"
+
+def draw_text_in_box(img, text: str, box_xywh, font_path: str,
+                     color="white", min_sz=10, max_sz=40, align="center"):
+    x, y, w, h = box_xywh
+    draw = ImageDraw.Draw(img)
+    font, txt = _shrink_to_fit(draw, text, w, h, font_path, min_sz, max_sz)
+    tw, th = _measure(draw, txt, font)
+
+    if align == "center":
+        tx = x + (w - tw) // 2
+    elif align == "right":
+        tx = x + (w - tw)
+    else:
+        tx = x
+    ty = y + (h - th) // 2
+    draw.text((tx, ty), txt, fill=color, font=font)
 
 # Also catch totally unhandled exceptions and log stack traces
 def _excepthook(exctype, value, tb):
@@ -801,6 +863,15 @@ def init_display():
         print(f"⚠️ Display init failed ({e}); falling back to dummy device.")
         device = _DummyDevice()
         return device
+    
+display_lock = threading.RLock()
+overlay = SnowfallOverlay(get_size=lambda: (device.width, device.height))
+
+def present(img):
+    with display_lock:
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        device.display(img)
 
 
 def _read_selected_resort_index(path="conf/skihill.conf") -> int:
@@ -967,33 +1038,39 @@ class skiHill:
                 print(f"[Lake Louise] HTTP Status: {response.status_code}")
 
         if self.name == "Revelstoke":
+            # Use Snow Plow's aggregated JSON instead of scraping the live site.
+            # Configure the base via env var if needed:
+            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
+            # Optional local fallback directory:
+            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
             print("Hello my name is " + self.name)
-            response = requests.get(self.url, timeout=10)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
 
-            section = soup.find("section", class_="snow-report__section")
-            if not section:
-                raise ValueError("Snow report section not found")
+            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
+            json_url = f"{base_url.rstrip('/')}/Revelstoke.json"
 
-            new_snow_div = section.find("div", class_="snow-report__new")
-            value = new_snow_div.find("span", class_="value").text.strip() if new_snow_div else "0"
-            self.newSnow = _safe_int(value)
+            try:
+                # Try the VPS HTTP endpoint first
+                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
+                r.raise_for_status()
+                data = r.json() if r.content else {}
+            except Exception as e_http:
+                # Fallback to a local/mounted directory if present
+                data = {}
+                try:
+                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+                    local_path = os.path.join(local_dir, "Revelstoke.json")
+                    if os.path.exists(local_path):
+                        with open(local_path, "r") as f:
+                            data = json.load(f)
+                    else:
+                        print(f"[Revelstoke] Neither HTTP nor local JSON available ({e_http})")
+                except Exception as e_file:
+                    print(f"[Revelstoke] Failed to read local JSON: {e_file}")
 
-            amounts_container = section.find("div", class_="snow-report__amounts")
-            amounts = amounts_container.find_all("div", class_="snow-report__amount") if amounts_container else []
-            for amount in amounts:
-                title = amount.find("h2", class_="snow-report__title")
-                if not title:
-                    continue
-                title_text = title.text.strip()
-                value_span = amount.find("span", class_="value")
-                value = value_span.text.strip() if value_span else "0"
-
-                if title_text == "Base Depth":
-                    self.baseSnow = _safe_int(value)
-                elif title_text == "7 days":
-                    self.weekSnow = _safe_int(value)
+            cur = data.get("current") or {}
+            self.newSnow  = _safe_int(cur.get("newSnow", 0))
+            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
             log_snow_data(self)
 
         if self.name == "Sun Peaks":
@@ -1352,7 +1429,11 @@ class KeyboardScreen(Screen):
         draw.text((10, 40), self.input_text, fill="cyan", font=font)
         for btn in self.buttons:
             btn.draw(draw)
-        device.display(img)
+        
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+        present(img) # do NOT call device.display(img) directly anymore
 
 
 class MainMenuScreen(Screen):
@@ -1375,7 +1456,7 @@ class MainMenuScreen(Screen):
         self.add_button(Button(60, 210, 260, 230, "Update", lambda: screen_manager.set_screen(UpdateScreen(screen_manager, screen_manager.hill)), visible=False))
 
     def draw(self, draw_obj):
-        device.display(self.bg_image.copy())
+        present(self.bg_image.copy())
 
 class SnowReportScreen(Screen):
     def __init__(self, screen_manager, hill):
@@ -1413,7 +1494,20 @@ class SnowReportScreen(Screen):
         x = 55
         line_h = 26
 
-        draw.text((x, 55), f"{h.name}", fill="white", font=font_title)
+        # Box where the resort name must fit (tweak to your background art)
+        NAME_BOX = (55, 55, 213, 35)  # (x, y, width, height)
+
+        # Draw name: auto-shrinks to fit NAME_BOX, centered
+        draw_text_in_box(
+            img,
+            h.name,
+            NAME_BOX,
+            font_path="fonts/superpixel.ttf",
+            color="white",
+            min_sz=12,
+            max_sz=38,
+            align="center",
+        )
         draw.text((x, 115), f"24hr Snow: {new_cm}cm",  fill="white", font=font_line)
         draw.text((x, 144), f"Week Snow: {week_cm}cm", fill="white", font=font_line)
         draw.text((x, 173), f"Base Snow: {base_cm}cm", fill="white", font=font_line)
@@ -1427,7 +1521,10 @@ class SnowReportScreen(Screen):
         for btn in self.buttons:
             btn.draw(draw)
 
-        device.display(img)
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+        present(img) # do NOT call device.display(img) directly anymore
 
 class SelectResortScreen(Screen):
     def __init__(self, screen_manager, hill):
@@ -1509,7 +1606,11 @@ class SelectResortScreen(Screen):
         for btn in self.buttons:
             btn.draw(draw)
 
-        device.display(img)
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+
+        present(img) # do NOT call device.display(img) directly anymore
 
 
 class ConfigWiFiScreen(Screen):
@@ -1589,7 +1690,11 @@ class ConfigWiFiScreen(Screen):
         for btn in self.buttons:
             btn.draw(draw)
 
-        device.display(img)
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+
+        present(img) # do NOT call device.display(img) directly anymore
 
 
 class AlarmScreen(Screen):
@@ -1746,7 +1851,10 @@ class AlarmScreen(Screen):
         for btn in self.buttons:
             btn.draw(draw)
 
-        device.display(img)
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+        present(img) # do NOT call device.display(img) directly anymore
 
 
 class ImageScreen(Screen):
@@ -1798,7 +1906,10 @@ class ImageScreen(Screen):
         for btn in self.buttons:
             btn.draw(draw)
 
-        device.display(img)
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+        present(img) # do NOT call device.display(img) directly anymore
 
 
 class UpdateScreen(Screen):
@@ -1845,7 +1956,10 @@ class UpdateScreen(Screen):
         for btn in self.buttons:
             btn.draw(draw)
 
-        device.display(img)
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+        present(img) # do NOT call device.display(img) directly anymore
 
 
 class ScreenManager:
@@ -1853,9 +1967,15 @@ class ScreenManager:
         self.current = None
 
     def set_screen(self, screen):
-        self.current = screen
-        self.redraw()
+        if isinstance(self.current, SnowReportScreen) and hasattr(self, "overlay"):
+            self.overlay.on_exit()
 
+        self.current = screen
+
+        if isinstance(screen, SnowReportScreen) and hasattr(self, "overlay"):
+            self.overlay.on_enter(present)
+
+        self.redraw()
     def draw(self, draw_obj):
         if self.current:
             self.current.draw(draw_obj)
@@ -1924,6 +2044,7 @@ def main():
 
         screen_manager = ScreenManager()
         screen_manager.hill = hill
+        screen_manager.overlay = overlay
         screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill))
 
         while True:
@@ -1960,8 +2081,14 @@ def main():
                 #update LEDs if snow amount changed
                 if current_snow_cm != main._prev_snow_cm:
                     print(f"[Snow] Change detected: {main._prev_snow_cm} -> {current_snow_cm}")
+                    if current_snow_cm > main._prev_snow_cm and hasattr(screen_manager, "overlay"):
+                        screen_manager.overlay.trigger(current_snow_cm - main._prev_snow_cm)
+                    else:
+                        screen_manager.overlay.stop()
                 leds_set_snow(current_snow_cm, main._prev_snow_cm)
                 main._prev_snow_cm = current_snow_cm
+
+
 
             except Exception:
                 current_snow_cm = 0
