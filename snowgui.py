@@ -820,7 +820,8 @@ def update(version_str: str) -> bool:
 
         with open(VERSION_FILE, "w") as f:
             f.write(version_str)
-
+        # Show confirmation popup
+        show_popup_message("Update complete.", duration=3)
         return True
 
     except subprocess.CalledProcessError as e:
@@ -1334,6 +1335,35 @@ class Button:
         print(f"[BUTTON] {self.label}")
         self.callback()
 
+def show_popup_message(text, duration=3):
+    """
+    Draws a centered popup dialog with the given text for <duration> seconds.
+    Compatible with newer Pillow (no .textsize()).
+    """
+    img = Image.new("RGB", (device.width, device.height), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    font = _load_font(size=16)
+
+    # translucent backdrop
+    draw.rectangle(
+        (40, 90, device.width - 40, 150),
+        fill=(0, 0, 0),
+        outline="white",
+        width=2,
+    )
+
+    # get text dimensions (Pillow 10+)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+    # center text
+    x = (device.width - w) // 2
+    y = (device.height - h) // 2
+    draw.text((x, y), text, fill="white", font=font)
+
+    present(img)
+    time.sleep(duration)
+
 
 class Screen:
     def __init__(self):
@@ -1659,6 +1689,13 @@ class ConfigWiFiScreen(Screen):
         print(f"[WiFi] PASSWORD set.")
 
     def save_and_exit(self):
+        # Skip if no password entered
+        if not self.password.strip():
+            print("[WiFi] No password entered — skipping WiFi update.")
+            self.screen_manager.set_screen(
+                ImageScreen("images/config.png", self.screen_manager, self.screen_manager.hill)
+            )
+            return
         try:
             with open("/etc/wpa_supplicant/wpa_supplicant.conf", "w") as f:
                 f.write(
@@ -1675,6 +1712,8 @@ class ConfigWiFiScreen(Screen):
             print(f"[ERROR] Failed to save or apply config: {e}")
 
         threading.Thread(target=reconfigure_wifi, daemon=True).start()
+        # Show confirmation popup
+        show_popup_message("WiFi Updated", duration=3)
         self.screen_manager.set_screen(ImageScreen("images/config.png", self.screen_manager, self.screen_manager.hill))
 
     def draw(self, draw_obj):
