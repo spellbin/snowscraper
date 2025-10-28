@@ -34,10 +34,6 @@ Features
     Trigger at a set time if snowfall exceeds a threshold, or use
     incremental “always-on” alarms (e.g. every +5 cm).
 
--   Watchdog daemon
-    snowscraper.py monitors snowgui.py, restarts it on crash, heartbeat
-    timeout, or memory leak, and logs everything.
-
 -   Touchscreen calibration
     calibrate_touchscreen.py provides a standalone two-point calibrator
     with results saved in JSON.
@@ -60,9 +56,11 @@ Software Requirements
 -   Python 3.9
 -   Required libraries:
 
-    sudo apt-get update
-    sudo apt-get install python3-pip python3-pil python3-spidev
-    sudo pip3 install requests packaging beautifulsoup4 pillow luma.lcd rpi-ws281x psutil python-daemon
+    sudo apt update
+    sudo apt install python3-pip git python3-psutil 
+    sudo apt install libjpeg62-turbo-dev zlib1g-dev libopenjp2-7 libtiff5 libfreetype6-dev
+    sudo pip3 install python-daemon requests beautifulsoup4 luma.lcd RPi.GPIO packaging pillow spidev rpi_ws281x
+
 
 ------------------------------------------------------------------------
 
@@ -87,9 +85,8 @@ Start the main GUI:
 
 Run with watchdog daemon (recommended):
 
-    python3 snowscraper.py        # daemon mode
-    python3 snowscraper.py --foreground   # run in foreground for debugging
-
+    sudo chmod +x setup_service.sh
+    sudo ./setup_service.sh
 ------------------------------------------------------------------------
 
 Configuration
@@ -117,7 +114,7 @@ Project Structure
 
     .
     ├── snowgui.py              # Main GUI + scraper
-    ├── snowscraper.py          # Watchdog daemon
+    ├── setup_service.sh        # Create a system.d service for autoboot
     ├── calibrate_touchscreen.py # Standalone calibration tool
     ├── conf/                   # Config + calibration data
     ├── logs/                   # Log output

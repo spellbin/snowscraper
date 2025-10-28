@@ -9,6 +9,7 @@ import subprocess
 import requests
 import re
 import sys, logging
+import shlex
 from logging.handlers import RotatingFileHandler
 from functools import lru_cache
 from pathlib import Path
@@ -27,6 +28,9 @@ from snowfall_overlay import SnowfallOverlay
 # ----------------------------
 REPO_URL = "https://github.com/spellbin/snowscraper.git"
 LOCAL_REPO_PATH = "/home/pi/snowscraper"  # Replace with your local path
+# Systemd integration
+SERVICE_NAME = "snowscraper.service"     # change if your unit is named differently
+UPDATER_UNIT = "snowgui-updater"     # transient unit name used for updates
 VERSION_FILE = os.path.join(LOCAL_REPO_PATH, "VERSION")  # Path to version file
 MAX_RETRIES = 3
 RETRY_DELAY = 5
@@ -43,6 +47,119 @@ print(f"[BOOT] DEV_MODE = {DEV_MODE}")
 
 # ---- Global hill singleton ---------------------------------
 hill = None  # skiHill instance; refreshed when skihill.conf changes
+
+def _is_systemd() -> bool:
+    try:
+        return os.path.isdir("/run/systemd/system")
+    except Exception:
+        return False
+
+def _update_inline_git_checkout(version_str: str) -> bool:
+    """
+    Original inline update (used when systemd is not available).
+    """
+    if not version_str:
+        return False
+    try:
+        _ensure_git_safe_dir(LOCAL_REPO_PATH)
+
+        if not os.path.exists(os.path.join(LOCAL_REPO_PATH, ".git")):
+            print("Repository not found, cloning...")
+            subprocess.run(
+                ["git", "clone", REPO_URL, LOCAL_REPO_PATH],
+                check=True, capture_output=True, text=True
+            )
+
+        subprocess.run(
+            ["git", "fetch", "--all", "--tags"],
+            cwd=LOCAL_REPO_PATH, check=True, capture_output=True, text=True
+        )
+        subprocess.run(
+            ["git", "checkout", f"tags/{version_str}", "-f"],
+            cwd=LOCAL_REPO_PATH, check=True, capture_output=True, text=True
+        )
+
+        with open(VERSION_FILE, "w") as f:
+            f.write(version_str)
+
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"[Update] Inline update failed: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"[Update] Inline update error: {e}")
+        return False
+
+def _systemd_run_update(version_str: str) -> bool:
+    """
+    Transient systemd oneshot updater that:
+      1) stops the service,
+      2) safely fetches and checks out the tag (HOME set; safe.directory forced),
+      3) writes VERSION,
+      4) restarts the service.
+
+    Works even if $HOME isn't set and repo ownership looks "dubious" to git.
+    """
+    if not version_str:
+        return False
+
+    # Shell script executed inside the transient unit
+    # - Use git -c safe.directory="$REPO" for every git call (no global config needed)
+    # - Also set HOME explicitly via systemd-run --setenv to keep git happy if ever needed
+    script = f"""
+set -euo pipefail
+
+REPO={shlex.quote(LOCAL_REPO_PATH)}
+SVC={shlex.quote(SERVICE_NAME)}
+TAG="$VER"
+
+echo "[Updater] Stopping $SVC"
+systemctl stop "$SVC"
+
+echo "[Updater] Ensuring repo exists: $REPO"
+test -d "$REPO/.git" || {{ echo "[Updater] ERROR: $REPO is not a git repo"; exit 128; }}
+
+echo "[Updater] Fetching tags (safe.directory forced)"
+git -c safe.directory="$REPO" -C "$REPO" fetch --all --prune --tags
+
+echo "[Updater] Verifying tag $TAG exists"
+git -c safe.directory="$REPO" -C "$REPO" rev-parse "refs/tags/$TAG" >/dev/null
+
+echo "[Updater] Checking out tag $TAG (force)"
+git -c safe.directory="$REPO" -C "$REPO" checkout -f "tags/$TAG"
+
+echo "[Updater] Writing VERSION file"
+printf "%s" "$TAG" > "$REPO/VERSION"
+
+echo "[Updater] Starting $SVC"
+systemctl start "$SVC"
+
+echo "[Updater] Done."
+"""
+
+    try:
+        cmd = [
+            "systemd-run",
+            "--quiet",
+            "--unit", UPDATER_UNIT,
+            "--property=Type=oneshot",
+            "--property=RemainAfterExit=no",
+            "--collect",
+            # Belt: set HOME so git won't complain if it ever reads global config
+            "--setenv", "HOME=/root",
+            # No interactive prompts in case of network/SSH issues
+            "--setenv", "GIT_TERMINAL_PROMPT=0",
+            # The requested version/tag
+            "--setenv", f"VER={version_str}",
+            "/bin/bash", "-lc", script
+        ]
+        subprocess.run(cmd, check=True)
+        return True
+    except Exception as e:
+        print(f"[Update] Failed to spawn systemd updater: {e}")
+        return False
+
 
 # --- Logging bootstrap (keep prints working, also log to file) ---
 # Log file lives next to this script: ./logs/snowgui.log
@@ -811,46 +928,15 @@ def _ensure_git_safe_dir(repo_path):
 
 
 def update(version_str: str) -> bool:
-    if not version_str:
-        return False
-    try:
-        _ensure_git_safe_dir(LOCAL_REPO_PATH)
-        if not os.path.exists(os.path.join(LOCAL_REPO_PATH, ".git")):
-            print("Repository not found, cloning...")
-            subprocess.run(
-                ["git", "clone", REPO_URL, LOCAL_REPO_PATH],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-
-        subprocess.run(
-            ["git", "fetch", "--all", "--tags"],
-            cwd=LOCAL_REPO_PATH,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-        subprocess.run(
-            ["git", "checkout", f"tags/{version_str}", "-f"],
-            cwd=LOCAL_REPO_PATH,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-        with open(VERSION_FILE, "w") as f:
-            f.write(version_str)
-
-        return True
-
-    except subprocess.CalledProcessError as e:
-        print(f"Update failed: {e.stderr}")
-        return False
-    except Exception as e:
-        print(f"Error during update: {e}")
-        return False
+    """
+    Systemd-aware update wrapper:
+      - If systemd is present, launch a transient updater unit and return True
+        if it was launched successfully (actual update runs in that unit).
+      - Otherwise, run the inline git checkout.
+    """
+    if _is_systemd():
+        return _systemd_run_update(version_str)
+    return _update_inline_git_checkout(version_str)
 
 
 def heartbeat():
@@ -2037,13 +2123,22 @@ class UpdateScreen(Screen):
 
         def _do_update():
             print("[Update] Newer version found. Updating...")
-            ok = update(self.latest_ver)
-            if ok:
-                show_popup_message("Update Complete", duration=3)
-                # Optional: go back to main menu after success
+            if _is_systemd():
+                # Hand off to systemd transient unit; the UI will be stopped/restarted by systemd.
+                show_popup_message("Updating… UI will restart", duration=2)
+                ok = update(self.latest_ver)
+                if not ok:
+                    show_popup_message("Update Failed", duration=3)
+                # Whether we see the next line depends on timing, but it's harmless either way:
                 self.screen_manager.set_screen(MainMenuScreen(self.screen_manager, self.screen_manager.hill))
             else:
-                show_popup_message("Update Failed", duration=3)
+                # Fallback when not running under systemd (e.g., dev box or manual run)
+                ok = update(self.latest_ver)
+                if ok:
+                    show_popup_message("Update Complete", duration=3)
+                    self.screen_manager.set_screen(MainMenuScreen(self.screen_manager, self.screen_manager.hill))
+                else:
+                    show_popup_message("Update Failed", duration=3)
 
         # Decide which action to expose on the UPDATE button
         try:
