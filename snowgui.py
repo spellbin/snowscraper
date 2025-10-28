@@ -788,11 +788,33 @@ def get_remote_version():
     finally:
         session.close()
 
+def _ensure_git_safe_dir(repo_path):
+    """
+    Mark the given repository as 'safe' for Git if not already.
+    This prevents 'dubious ownership' errors when running as another user.
+    """
+    try:
+        # Check if Git already lists it as safe
+        result = subprocess.run(
+            ["git", "config", "--global", "--get-all", "safe.directory"],
+            capture_output=True,
+            text=True
+        )
+        if repo_path not in result.stdout:
+            subprocess.run(
+                ["git", "config", "--global", "--add", "safe.directory", repo_path],
+                check=True
+            )
+            print(f"[Update] Added {repo_path} to git safe.directory.")
+    except Exception as e:
+        print(f"[Update] Could not mark repo safe: {e}")
+
 
 def update(version_str: str) -> bool:
     if not version_str:
         return False
     try:
+        _ensure_git_safe_dir(LOCAL_REPO_PATH)
         if not os.path.exists(os.path.join(LOCAL_REPO_PATH, ".git")):
             print("Repository not found, cloning...")
             subprocess.run(
@@ -820,8 +842,7 @@ def update(version_str: str) -> bool:
 
         with open(VERSION_FILE, "w") as f:
             f.write(version_str)
-        # Show confirmation popup
-        show_popup_message("Update complete.", duration=3)
+
         return True
 
     except subprocess.CalledProcessError as e:
@@ -985,58 +1006,76 @@ class skiHill:
             log_snow_data(self)
 
         if self.name == "Banff Sunshine":
+            # Use Snow Plow's aggregated JSON instead of scraping the live site.
+            # Configure the base via env var if needed:
+            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
+            # Optional local fallback directory:
+            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
             print("Hello my name is " + self.name)
-            response = requests.get(self.url, timeout=10)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
-                sunshine_section = soup.find("div", class_="sv-print")
-                if sunshine_section:
-                    table = sunshine_section.find("table", class_="stats")
-                    if table and table.find("tbody"):
-                        cells = table.find("tbody").find_all("td")
-                        if len(cells) >= 5:
-                            overnight = _safe_int(cells[0].get_text(strip=True))
-                            seven_day = _safe_int(cells[2].get_text(strip=True))
-                            base = _safe_int(cells[3].get_text(strip=True))
-                            self.newSnow = overnight
-                            self.weekSnow = seven_day
-                            self.baseSnow = base
-                            log_snow_data(self)
-                        else:
-                            print("[Banff Sunshine] Snowfall data columns missing.")
+
+            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
+            json_url = f"{base_url.rstrip('/')}/Banff_Sunshine.json"
+
+            try:
+                # Try the VPS HTTP endpoint first
+                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
+                r.raise_for_status()
+                data = r.json() if r.content else {}
+            except Exception as e_http:
+                # Fallback to a local/mounted directory if present
+                data = {}
+                try:
+                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+                    local_path = os.path.join(local_dir, "Banff_Sunshine.json")
+                    if os.path.exists(local_path):
+                        with open(local_path, "r") as f:
+                            data = json.load(f)
                     else:
-                        print("[Banff Sunshine] Snowfall table not found.")
-                else:
-                    print("[Banff Sunshine] Section not found.")
-            else:
-                print(f"[Banff Sunshine] HTTP Status: {response.status_code}")
+                        print(f"[Banff Sunshine] Neither HTTP nor local JSON available ({e_http})")
+                except Exception as e_file:
+                    print(f"[Banff Sunshine] Failed to read local JSON: {e_file}")
+
+            cur = data.get("current") or {}
+            self.newSnow  = _safe_int(cur.get("newSnow", 0))
+            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
+            log_snow_data(self)
 
         if self.name == "Lake Louise":
+            # Use Snow Plow's aggregated JSON instead of scraping the live site.
+            # Configure the base via env var if needed:
+            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
+            # Optional local fallback directory:
+            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
             print("Hello my name is " + self.name)
-            response = requests.get(self.url, timeout=10)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
-                ll_section = soup.find("div", class_="ll-print")
-                if ll_section:
-                    table = ll_section.find("table", class_="stats")
-                    if table and table.find("tbody"):
-                        cells = table.find("tbody").find_all("td")
-                        if len(cells) >= 5:
-                            overnight = _safe_int(cells[0].get_text(strip=True))
-                            seven_day = _safe_int(cells[2].get_text(strip=True))
-                            base = _safe_int(cells[3].get_text(strip=True))
-                            self.newSnow = overnight
-                            self.weekSnow = seven_day
-                            self.baseSnow = base
-                            log_snow_data(self)
-                        else:
-                            print("[Lake Louise] Snowfall data columns missing.")
+
+            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
+            json_url = f"{base_url.rstrip('/')}/Lake_Louise.json"
+
+            try:
+                # Try the VPS HTTP endpoint first
+                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
+                r.raise_for_status()
+                data = r.json() if r.content else {}
+            except Exception as e_http:
+                # Fallback to a local/mounted directory if present
+                data = {}
+                try:
+                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+                    local_path = os.path.join(local_dir, "Lake_Louise.json")
+                    if os.path.exists(local_path):
+                        with open(local_path, "r") as f:
+                            data = json.load(f)
                     else:
-                        print("[Lake Louise] Snowfall table not found.")
-                else:
-                    print("[Lake Louise] Section not found.")
-            else:
-                print(f"[Lake Louise] HTTP Status: {response.status_code}")
+                        print(f"[Lake_Louise] Neither HTTP nor local JSON available ({e_http})")
+                except Exception as e_file:
+                    print(f"[Lake_Louise] Failed to read local JSON: {e_file}")
+
+            cur = data.get("current") or {}
+            self.newSnow  = _safe_int(cur.get("newSnow", 0))
+            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
+            log_snow_data(self)
 
         if self.name == "Revelstoke":
             # Use Snow Plow's aggregated JSON instead of scraping the live site.
@@ -1075,27 +1114,39 @@ class skiHill:
             log_snow_data(self)
 
         if self.name == "Sun Peaks":
+              # Use Snow Plow's aggregated JSON instead of scraping the live site.
+            # Configure the base via env var if needed:
+            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
+            # Optional local fallback directory:
+            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
             print("Hello my name is " + self.name)
-            response = requests.get(self.url, timeout=10)
-            soup = BeautifulSoup(response.text, "html.parser")
 
-            node = soup.find("span", class_="snow-new")
-            self.newSnow = _safe_int(node.text.strip() if node else "0")
+            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
+            json_url = f"{base_url.rstrip('/')}/Sun_Peaks.json"
 
-            node = soup.find("span", class_="snow-7")
-            self.weekSnow = _safe_int(node.text.strip() if node else "0")
+            try:
+                # Try the VPS HTTP endpoint first
+                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
+                r.raise_for_status()
+                data = r.json() if r.content else {}
+            except Exception as e_http:
+                # Fallback to a local/mounted directory if present
+                data = {}
+                try:
+                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+                    local_path = os.path.join(local_dir, "Sun_Peaks.json")
+                    if os.path.exists(local_path):
+                        with open(local_path, "r") as f:
+                            data = json.load(f)
+                    else:
+                        print(f"[Sun Peaks] Neither HTTP nor local JSON available ({e_http})")
+                except Exception as e_file:
+                    print(f"[Sun Peaks] Failed to read local JSON: {e_file}")
 
-            values = []
-            html_array = soup.find_all("span", class_="value_switch value_cm") or []
-            for html_string in html_array:
-                soup2 = BeautifulSoup(str(html_string), "html.parser")
-                span_element = soup2.find("span", class_="value_switch value_cm")
-                if span_element and span_element.text:
-                    values.append(_safe_int(span_element.text.strip()))
-            if len(values) >= 3:
-                self.baseSnow = values[2]
-            else:
-                self.baseSnow = 0
+            cur = data.get("current") or {}
+            self.newSnow  = _safe_int(cur.get("newSnow", 0))
+            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
             log_snow_data(self)
 
         if self.name == "Whistler":
@@ -1125,25 +1176,39 @@ class skiHill:
                 print(f"[Whistler] HTTP Status: {response.status_code}")
 
         if self.name == "Big White":
+            # Use Snow Plow's aggregated JSON instead of scraping the live site.
+            # Configure the base via env var if needed:
+            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
+            # Optional local fallback directory:
+            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
             print("Hello my name is " + self.name)
-            response = requests.get(self.url, timeout=10)
-            soup = BeautifulSoup(response.text, "html.parser")
 
-            span_elements = soup.find_all("span", class_="bigger-font")
-            if span_elements:
-                for index, span in enumerate(span_elements, start=1):
-                    text = span.text.replace("&nbsp;", " ")
-                    if index == 5:
-                        self.newSnow = _safe_int(text)
-                    elif index == 7:
-                        self.baseSnow = _safe_int(text)
+            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
+            json_url = f"{base_url.rstrip('/')}/Big_White.json"
 
-            big_font_elements = soup.find_all(class_="big-font")
-            if big_font_elements:
-                for index, element in enumerate(big_font_elements, start=1):
-                    text = element.text.replace("&nbsp;", " ")
-                    if index == 2:
-                        self.weekSnow = _safe_int(text)
+            try:
+                # Try the VPS HTTP endpoint first
+                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
+                r.raise_for_status()
+                data = r.json() if r.content else {}
+            except Exception as e_http:
+                # Fallback to a local/mounted directory if present
+                data = {}
+                try:
+                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+                    local_path = os.path.join(local_dir, "Big_White.json")
+                    if os.path.exists(local_path):
+                        with open(local_path, "r") as f:
+                            data = json.load(f)
+                    else:
+                        print(f"[Big White] Neither HTTP nor local JSON available ({e_http})")
+                except Exception as e_file:
+                    print(f"[Big White] Failed to read local JSON: {e_file}")
+
+            cur = data.get("current") or {}
+            self.newSnow  = _safe_int(cur.get("newSnow", 0))
+            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
             log_snow_data(self)
 
 
@@ -1956,20 +2021,36 @@ class UpdateScreen(Screen):
         super().__init__()
         self.screen_manager = screen_manager
         self.hill = hill
+
+        # Read versions
         self.current_ver = get_local_version() or "0.0.0"
         self.latest_ver = get_remote_version() or self.current_ver
 
         def _noop_update():
             print("[Update] Currently installed version is up to date.")
+            show_popup_message("Already up to date", duration=3)
 
+        def _do_update():
+            print("[Update] Newer version found. Updating...")
+            ok = update(self.latest_ver)
+            if ok:
+                show_popup_message("Update Complete", duration=3)
+                # Optional: go back to main menu after success
+                self.screen_manager.set_screen(MainMenuScreen(self.screen_manager, self.screen_manager.hill))
+            else:
+                show_popup_message("Update Failed", duration=3)
+
+        # Decide which action to expose on the UPDATE button
         try:
             if version.parse(self.latest_ver) > version.parse(self.current_ver):
-                self.update_function = lambda: (print("[Update] Newer version found. Updating..."), update(self.latest_ver))[1]
+                self.update_function = _do_update
             else:
                 self.update_function = _noop_update
         except Exception:
+            # If version parsing fails, fall back to no-op (non-crashing)
             self.update_function = _noop_update
 
+        # Background
         try:
             self.bg_image = Image.open("images/update.png").convert("RGB").resize((device.width, device.height))
             self.image_missing = False
@@ -1981,8 +2062,11 @@ class UpdateScreen(Screen):
         print(f"[Update] Current Version: {self.current_ver}")
         print(f"[Update] Latest Version: {self.latest_ver}")
 
+        # Buttons
         self.add_button(Button(43, 205, 280, 235, "UPDATE", self.update_function, visible=False))
-        self.add_button(Button(290, 210, 316, 237, "Back", lambda: screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill)), visible=False))
+        self.add_button(Button(290, 210, 316, 237, "Back",
+                               lambda: screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill)),
+                               visible=False))
 
     def draw(self, draw_obj):
         img = self.bg_image.copy()
@@ -1998,7 +2082,8 @@ class UpdateScreen(Screen):
         if hasattr(self.screen_manager, "overlay"):
             self.screen_manager.overlay.update_base(img)
 
-        present(img) # do NOT call device.display(img) directly anymore
+        present(img)  # use presenter wrapper
+
 
 
 class ScreenManager:
