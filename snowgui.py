@@ -1559,6 +1559,11 @@ class SnowReportScreen(Screen):
         self.screen_manager = screen_manager
         self.hill = hill
         try:
+            print(f"[SnowReport] Refreshing data for {self.hill.name}...")
+            self.hill.getSnow()
+        except Exception as e:
+            print(f"[SnowReport] Failed to refresh: {e}")
+        try:
             self.bg_image = Image.open("images/mreport.png").convert("RGB").resize((device.width, device.height))
             self.image_missing = False
         except FileNotFoundError:
