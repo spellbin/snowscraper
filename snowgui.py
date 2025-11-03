@@ -93,20 +93,20 @@ def _update_inline_git_checkout(version_str: str) -> bool:
 
 def _systemd_run_update(version_str: str) -> bool:
     """
-    Transient systemd oneshot updater that:
-      1) stops the service,
-      2) safely fetches and checks out the tag (HOME set; safe.directory forced),
-      3) writes VERSION,
-      4) restarts the service.
-
-    Works even if $HOME isn't set and repo ownership looks "dubious" to git.
+    Transient systemd oneshot updater that runs as the repo owner to avoid
+    Git 'dubious ownership' errors, then performs a safe checkout.
     """
     if not version_str:
         return False
 
-    # Shell script executed inside the transient unit
-    # - Use git -c safe.directory="$REPO" for every git call (no global config needed)
-    # - Also set HOME explicitly via systemd-run --setenv to keep git happy if ever needed
+    import pwd
+
+    # Determine repo owner -> user & home
+    st = os.stat(LOCAL_REPO_PATH)
+    user_entry = pwd.getpwuid(st.st_uid)
+    run_user = user_entry.pw_name
+    run_home = user_entry.pw_dir
+
     script = f"""
 set -euo pipefail
 
@@ -146,11 +146,11 @@ echo "[Updater] Done."
             "--property=Type=oneshot",
             "--property=RemainAfterExit=no",
             "--collect",
-            # Belt: set HOME so git won't complain if it ever reads global config
-            "--setenv", "HOME=/root",
-            # No interactive prompts in case of network/SSH issues
+            # Run as the repo owner (avoids dubious ownership entirely)
+            "--property", f"User={run_user}",
+            # Give git a sane HOME for that user
+            "--setenv", f"HOME={run_home}",
             "--setenv", "GIT_TERMINAL_PROMPT=0",
-            # The requested version/tag
             "--setenv", f"VER={version_str}",
             "/bin/bash", "-lc", script
         ]
