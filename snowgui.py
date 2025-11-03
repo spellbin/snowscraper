@@ -1068,6 +1068,42 @@ class skiHill:
             self.weekSnow = 3
             self.baseSnow = 120
             return
+        
+        if self.name == "Kicking Horse":
+            # Use Snow Plow's aggregated JSON instead of scraping the live site.
+            # Configure the base via env var if needed:
+            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
+            # Optional local fallback directory:
+            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
+            print("Hello my name is " + self.name)
+
+            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
+            json_url = f"{base_url.rstrip('/')}/Kicking_Horse.json"
+
+            try:
+                # Try the VPS HTTP endpoint first
+                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
+                r.raise_for_status()
+                data = r.json() if r.content else {}
+            except Exception as e_http:
+                # Fallback to a local/mounted directory if present
+                data = {}
+                try:
+                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+                    local_path = os.path.join(local_dir, "Kicking_Horse.json")
+                    if os.path.exists(local_path):
+                        with open(local_path, "r") as f:
+                            data = json.load(f)
+                    else:
+                        print(f"[Banff Sunshine] Neither HTTP nor local JSON available ({e_http})")
+                except Exception as e_file:
+                    print(f"[Banff Sunshine] Failed to read local JSON: {e_file}")
+
+            cur = data.get("current") or {}
+            self.newSnow  = _safe_int(cur.get("newSnow", 0))
+            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
+            log_snow_data(self)
 
         if self.name == "Red Mountain":
             print("Hello my name is " + self.name)
@@ -1694,7 +1730,7 @@ class SnowReportScreen(Screen):
             max_sz=38,
             align="center",
         )
-        draw.text((x, 115), f"24hr Snow: {new_cm}cm",  fill="white", font=font_line)
+        draw.text((x, 115), f"New  Snow: {new_cm}cm",  fill="white", font=font_line)
         draw.text((x, 144), f"Week Snow: {week_cm}cm", fill="white", font=font_line)
         draw.text((x, 173), f"Base Snow: {base_cm}cm", fill="white", font=font_line)
 
@@ -2125,7 +2161,7 @@ class UpdateScreen(Screen):
             print("[Update] Newer version found. Updating...")
             if _is_systemd():
                 # Hand off to systemd transient unit; the UI will be stopped/restarted by systemd.
-                show_popup_message("Updating… UI will restart", duration=2)
+                show_popup_message("Updating…", duration=3)
                 ok = update(self.latest_ver)
                 if not ok:
                     show_popup_message("Update Failed", duration=3)
