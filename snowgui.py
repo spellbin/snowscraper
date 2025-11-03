@@ -93,73 +93,136 @@ def _update_inline_git_checkout(version_str: str) -> bool:
 
 def _systemd_run_update(version_str: str) -> bool:
     """
-    Transient systemd oneshot updater that runs as the repo owner to avoid
-    Git 'dubious ownership' errors, then performs a safe checkout.
+    Launch the updater as a transient systemd unit (older systemd compatible).
+    - Avoids --replace (not present on some Raspberry Pi builds).
+    - Uses a unique unit name to prevent collisions.
+    - Probes for --collect support.
+    - Requires running as root (system scope).
+    Returns True if the transient unit was started successfully.
     """
-    if not version_str:
+    import os, time, textwrap, subprocess
+
+    # Must be root to create a *system* transient unit.
+    if os.geteuid() != 0:
+        print("[Update] Not running as root: cannot create a system transient unit.")
         return False
 
-    import pwd
+    # Probe systemd-run flags on this OS
+    try:
+        help_txt = subprocess.run(
+            ["systemd-run", "--help"], capture_output=True, text=True
+        ).stdout
+    except Exception as e:
+        print(f"[Update] systemd-run unavailable: {e}")
+        return False
 
-    # Determine repo owner -> user & home
-    st = os.stat(LOCAL_REPO_PATH)
-    user_entry = pwd.getpwuid(st.st_uid)
-    run_user = user_entry.pw_name
-    run_home = user_entry.pw_dir
+    def _has(flag: str) -> bool:
+        # simple string probe is sufficient for our needs
+        return flag in help_txt
 
-    script = f"""
-set -euo pipefail
+    # Unique unit name so we don't need --replace
+    unit_name = f"snowgui-updater-{int(time.time())}"
 
-REPO={shlex.quote(LOCAL_REPO_PATH)}
-SVC={shlex.quote(SERVICE_NAME)}
-TAG="$VER"
+    # The payload script the unit will execute
+    script = textwrap.dedent(f"""\
+        set -euo pipefail
 
-echo "[Updater] Stopping $SVC"
-systemctl stop "$SVC"
+        REPO=/home/pi/snowscraper
+        TAG="{version_str}"
 
-echo "[Updater] Ensuring repo exists: $REPO"
-test -d "$REPO/.git" || {{ echo "[Updater] ERROR: $REPO is not a git repo"; exit 128; }}
+        # --- find runuser (path can vary on some images) ---------------------
+        RUNUSER="$(command -v runuser || true)"
+        if [ -z "$RUNUSER" ]; then
+          for CAND in /sbin/runuser /usr/sbin/runuser /bin/runuser /usr/bin/runuser; do
+            [ -x "$CAND" ] && RUNUSER="$CAND" && break
+          done
+        fi
+        if [ -z "$RUNUSER" ]; then
+          echo "[Updater] ERROR: runuser not found."
+          exit 127
+        fi
 
-echo "[Updater] Fetching tags (safe.directory forced)"
-git -c safe.directory="$REPO" -C "$REPO" fetch --all --prune --tags
+        # --- detect service to stop/start (non-fatal if missing) ------------
+        detect_service() {{
+          local candidates="snowscraper.service snowgui.service"
+          local picked=""
+          for S in $candidates; do
+            systemctl list-unit-files | awk '{{print $1}}' | grep -xq "$S" && {{ picked="$S"; break; }}
+            systemctl status "$S" >/dev/null 2>&1 && {{ picked="$S"; break; }}
+          done
+          echo "$picked"
+        }}
 
-echo "[Updater] Verifying tag $TAG exists"
-git -c safe.directory="$REPO" -C "$REPO" rev-parse "refs/tags/$TAG" >/dev/null
+        SVC="$(detect_service || true)"
+        if [ -n "$SVC" ]; then
+          echo "[Updater] Using service: $SVC"
+          echo "[Updater] Stopping $SVC"
+          systemctl stop "$SVC" || echo "[Updater] WARNING: stop failed; continuing."
+        else
+          echo "[Updater] WARNING: No matching service found; proceeding without stop/start."
+        fi
 
-echo "[Updater] Checking out tag $TAG (force)"
-git -c safe.directory="$REPO" -C "$REPO" checkout -f "tags/$TAG"
+        echo "[Updater] Ensuring repo exists: $REPO"
+        if [ ! -d "$REPO/.git" ]; then
+          echo "[Updater] ERROR: $REPO is not a git repo"
+          [ -n "$SVC" ] && systemctl start "$SVC" || true
+          exit 128
+        fi
 
-echo "[Updater] Writing VERSION file"
-printf "%s" "$TAG" > "$REPO/VERSION"
+        echo "[Updater] Fetching tags (as pi)"
+        "$RUNUSER" -u pi -- git -c safe.directory="$REPO" -C "$REPO" fetch --all --prune --tags
 
-echo "[Updater] Starting $SVC"
-systemctl start "$SVC"
+        echo "[Updater] Verifying tag $TAG exists"
+        "$RUNUSER" -u pi -- git -c safe.directory="$REPO" -C "$REPO" rev-parse "refs/tags/$TAG" >/dev/null
 
-echo "[Updater] Done."
-"""
+        echo "[Updater] Checking out tag $TAG (force)"
+        "$RUNUSER" -u pi -- git -c safe.directory="$REPO" -C "$REPO" checkout -f "tags/$TAG"
+
+        echo "[Updater] Writing VERSION file"
+        printf "%s" "$TAG" | "$RUNUSER" -u pi -- tee "$REPO/VERSION" >/dev/null
+
+        if [ -n "$SVC" ]; then
+          echo "[Updater] Starting $SVC"
+          systemctl start "$SVC" || echo "[Updater] WARNING: start failed."
+        fi
+
+        echo "[Updater] Done."
+    """)
+
+    # Build the systemd-run command with only flags supported on this box
+    cmd = [
+        "systemd-run",
+        "--quiet",
+        "--unit", unit_name,
+        "--property=Type=oneshot",
+        "--property=RemainAfterExit=no",
+    ]
+    if _has("--collect"):
+        cmd.append("--collect")
+
+    # Environment (harmless even if the script doesn't use VER directly)
+    cmd += [
+        "--setenv", "GIT_TERMINAL_PROMPT=0",
+        "--setenv", "HOME=/home/pi",
+        "--setenv", f"VER={version_str}",
+        "/bin/bash", "-lc", script,
+    ]
 
     try:
-        cmd = [
-            "systemd-run",
-            "--quiet",
-            "--unit", UPDATER_UNIT,
-            "--property=Type=oneshot",
-            "--property=RemainAfterExit=no",
-            "--collect",
-            # Run as the repo owner (avoids dubious ownership entirely)
-            "--property", f"User={run_user}",
-            # Give git a sane HOME for that user
-            "--setenv", f"HOME={run_home}",
-            "--setenv", "GIT_TERMINAL_PROMPT=0",
-            "--setenv", f"VER={version_str}",
-            "/bin/bash", "-lc", script
-        ]
-        subprocess.run(cmd, check=True)
+        res = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        out = res.stdout.strip()
+        if out:
+            print(f"[Update] systemd-run started: {out}")
+        else:
+            print(f"[Update] systemd-run started unit {unit_name}")
         return True
-    except Exception as e:
-        print(f"[Update] Failed to spawn systemd updater: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"[Update] systemd-run failed (rc={e.returncode})")
+        if e.stdout:
+            print(f"[Update] stdout:\n{e.stdout}")
+        if e.stderr:
+            print(f"[Update] stderr:\n{e.stderr}")
         return False
-
 
 # --- Logging bootstrap (keep prints working, also log to file) ---
 # Log file lives next to this script: ./logs/snowgui.log
