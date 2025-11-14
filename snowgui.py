@@ -34,7 +34,7 @@ UPDATER_UNIT = "snowgui-updater"     # transient unit name used for updates
 VERSION_FILE = os.path.join(LOCAL_REPO_PATH, "VERSION")  # Path to version file
 MAX_RETRIES = 3
 RETRY_DELAY = 5
-VERBOSE = True # set True for extra console logging ie. each touch read
+VERBOSE = False # set True for extra console logging ie. each touch read // cpu temp badge
 GITHUB_TOKEN = None  # Optional GitHub token for private repos
 CALIBRATION_FILE = "/home/pi/snowscraper/conf/touch_calibration.json"
 HEARTBEAT_FILE = "/home/pi/snowscraper/heartbeat.txt"
@@ -407,33 +407,48 @@ class SnowLEDs:
 
     # ---------- public API ----------
     def set_snow_value(self, cm_now: int, cm_prev: int):
-        """Set visual state for current snow. Breathing runs only if value changed."""
-        cm_now = max(0, min(20, int(cm_now or 0)))
-        cm_prev = max(0, min(20, int(cm_prev or 0)))
-        with self._lock:
-            self._current_cm = cm_now
-            self._prev_cm = cm_prev
-            self._base_color = self._color_for_cm(cm_now) if cm_now > 0 else (0, 0, 0)
+        """
+        Set visual state for current snow.
 
-        # Sparkle on heavy snowfall
-        if cm_now > 15:
+        - Uses REAL cm values for change detection, breathing, and sparkle logic.
+        - Clamps ONLY for color mapping (0–20 cm visual scale).
+        """
+        # Raw values (can be >20)
+        raw_now = int(cm_now or 0)
+        raw_prev = int(cm_prev or 0)
+
+        # Clamped value for color mapping only
+        color_cm = max(0, min(20, raw_now))
+
+        print(f"[LED] Set Snow value now: {raw_now} prev: {raw_prev}")
+
+        with self._lock:
+            # Preserve real values for internal logic
+            self._current_cm = raw_now
+            self._prev_cm = raw_prev
+
+            # Base color uses clamped visual range
+            self._base_color = self._color_for_cm(color_cm) if raw_now > 0 else (0, 0, 0)
+
+        # Sparkle on heavy snowfall using REAL value
+        if raw_now > 20:
             self._start_sparkle()
         else:
             self._stop_sparkle()
 
-        if cm_now <= 0:
-            # off
+        # No snow -> off
+        if raw_now <= 0:
             self._stop_breathe()
             self._paint_solid((0, 0, 0), 0.0)
             return
 
-        if cm_now != cm_prev:
-            # change detected -> start/refresh breathing
-            delta = abs(cm_now - cm_prev)
+        # Value changed -> breathing based on REAL delta
+        if raw_now != raw_prev:
+            delta = abs(raw_now - raw_prev)
             period = self._breath_period_for_delta(delta)
             self._start_breathe(period_sec=period)
         else:
-            # unchanged -> steady, no breathing
+            # Unchanged -> steady, no breathing
             self._stop_breathe()
             self._paint_solid(self._base_color, self._steady_brightness)
 
@@ -510,7 +525,7 @@ class SnowLEDs:
         delta = max(1, min(10, int(delta)))
         return max(1.5, 8.0 - (delta - 1) * 0.73)
 
-    # ----- sparkle worker (>15 cm) -----
+    # ----- sparkle worker (>20 cm) -----
     def _start_sparkle(self):
         if self._sparkle_thread and self._sparkle_thread.is_alive():
             return
@@ -758,42 +773,17 @@ except Exception:
 BUZZER_PIN = 18
 NOTES = {
     "C4": 262,
-    "D4": 294,
     "E4": 330,
-    "F4": 349,
     "G4": 392,
-    "A4": 440,
     "B4": 494,
     "C5": 523,
-    "D5": 587,
-    "E5": 659,
-    "F5": 698,
-    "G5": 784,
-    "A5": 880,
     "REST": 0,
 }
 
-_CHORUS = [
-    ("G4", 0.2),
-    ("E4", 0.2),
-    ("C4", 0.2),
-    ("G4", 0.2),
-    ("E4", 0.2),
-    ("C4", 0.2),
-    ("F4", 0.2),
-    ("G4", 0.2),
-    ("E4", 0.2),
-    ("D4", 0.7),
-    ("G4", 0.2),
-    ("E4", 0.2),
-    ("C4", 0.2),
-    ("G4", 0.2),
-    ("E4", 0.2),
-    ("C4", 0.2),
-    ("C5", 0.2),
-    ("B4", 0.2),
-    ("G4", 0.6),
-]
+_CHORUS = [("G4", 0.18), ("E4", 0.18), ("C4", 0.18),
+             ("G4", 0.18), ("E4", 0.18), ("C4", 0.18),
+             ("C5", 0.18), ("B4", 0.18), ("G4", 0.45)]
+
 _POWDER_DAY_ANTHEM = _CHORUS * 5
 
 _pwm = None
@@ -1132,13 +1122,49 @@ class skiHill:
             self.baseSnow = 120
             return
         
+        if self.name == "Whitewater":
+            # Use Snow Plow's aggregated JSON instead of scraping the live site.
+            # Configure the base via env var if needed:
+            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
+            # Optional local fallback directory:
+            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
+            print("[getSnow] " + self.name)
+
+            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
+            json_url = f"{base_url.rstrip('/')}/Whitewater.json"
+
+            try:
+                # Try the VPS HTTP endpoint first
+                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
+                r.raise_for_status()
+                data = r.json() if r.content else {}
+            except Exception as e_http:
+                # Fallback to a local/mounted directory if present
+                data = {}
+                try:
+                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+                    local_path = os.path.join(local_dir, "Whitewater.json")
+                    if os.path.exists(local_path):
+                        with open(local_path, "r") as f:
+                            data = json.load(f)
+                    else:
+                        print(f"[Whitewater] Neither HTTP nor local JSON available ({e_http})")
+                except Exception as e_file:
+                    print(f"[Whitewater] Failed to read local JSON: {e_file}")
+
+            cur = data.get("current") or {}
+            self.newSnow  = _safe_int(cur.get("newSnow", 0))
+            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
+            log_snow_data(self)
+
         if self.name == "Kicking Horse":
             # Use Snow Plow's aggregated JSON instead of scraping the live site.
             # Configure the base via env var if needed:
             #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
             # Optional local fallback directory:
             #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
 
             base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
             json_url = f"{base_url.rstrip('/')}/Kicking_Horse.json"
@@ -1169,7 +1195,7 @@ class skiHill:
             log_snow_data(self)
 
         if self.name == "Red Mountain":
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
             response = requests.get(self.url, timeout=10)
             response.raise_for_status()
             response_text = response.text
@@ -1196,7 +1222,7 @@ class skiHill:
             #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
             # Optional local fallback directory:
             #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
 
             base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
             json_url = f"{base_url.rstrip('/')}/Banff_Sunshine.json"
@@ -1232,7 +1258,7 @@ class skiHill:
             #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
             # Optional local fallback directory:
             #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
 
             base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
             json_url = f"{base_url.rstrip('/')}/Lake_Louise.json"
@@ -1268,7 +1294,7 @@ class skiHill:
             #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
             # Optional local fallback directory:
             #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
 
             base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
             json_url = f"{base_url.rstrip('/')}/Revelstoke.json"
@@ -1304,7 +1330,7 @@ class skiHill:
             #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
             # Optional local fallback directory:
             #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
 
             base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
             json_url = f"{base_url.rstrip('/')}/Sun_Peaks.json"
@@ -1335,7 +1361,7 @@ class skiHill:
             log_snow_data(self)
 
         if self.name == "Whistler":
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
             response = requests.get(self.url, timeout=10)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, "html.parser")
@@ -1366,7 +1392,7 @@ class skiHill:
             #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
             # Optional local fallback directory:
             #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("Hello my name is " + self.name)
+            print("[getSnow] " + self.name)
 
             base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
             json_url = f"{base_url.rstrip('/')}/Big_White.json"
@@ -1408,7 +1434,7 @@ def create_selected_hill():
         "Lake Louise",
         "Banff Sunshine",
         "Red Mountain",
-        "White Water",
+        "Whitewater",
     ]
     urls = {
         "Sun Peaks": "https://www.sunpeaksresort.com/snow-report",
@@ -1420,7 +1446,7 @@ def create_selected_hill():
         "Lake Louise": "https://www.skilouise.com/conditions-and-weather/",
         "Banff Sunshine": "https://www.skibanff.com/conditions",
         "Red Mountain": "https://api.redresort.com/snowreport",
-        "White Water": "https://skiwhitewater.com/snow-report/",
+        "Whitewater": "https://whitewatermountainresort.com/conditions/",
     }
     idx = max(0, min(_read_selected_resort_index(), len(names) - 1))
     name = names[idx]
@@ -1723,8 +1749,8 @@ class MainMenuScreen(Screen):
         self.hill = hill
         try:
             self.bg_image = Image.open("images/mainmenu.png").convert("RGB").resize((device.width, device.height))
+            draw_wifi_bars_badge(self.bg_image, pos="top-right")
             if VERBOSE:
-                draw_wifi_bars_badge(self.bg_image, pos="top-right")
                 draw_cpu_badge(self.bg_image, pos="top-left")
         except FileNotFoundError:
             print("⚠️ images/mainmenu.png not found. Using black background.")
@@ -1738,6 +1764,414 @@ class MainMenuScreen(Screen):
     def draw(self, draw_obj):
         present(self.bg_image.copy())
 
+class ChartScreen(Screen):
+    """
+    History chart screen:
+    - Uses the currently selected hill's URL/name to resolve a Snow Plow-style JSON history feed.
+    - Left Y-axis: 7-day & base depth (lines).
+    - Right Y-axis: 24h new snow (bars, LED-style colors).
+    - Back button bottom-right -> Mountain Report for the same hill.
+    """
+
+    def __init__(self, screen_manager, hill):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.hill = hill
+
+        self.bg_color = (15, 20, 30)
+        self.grid_color = (60, 60, 80)
+        self.text_color = (220, 220, 220)
+        self.font = _load_font(size=12)
+
+        self.url = self._resolve_history_url()
+        print(f"[ChartScreen] Using history URL for {getattr(self.hill, 'name', '?')}: {self.url}")
+
+        # Back button bottom-right → Mountain Report (same hill)
+        self.add_button(Button(
+            240, 210, 310, 239,
+            "Back",
+            lambda: screen_manager.set_screen(
+                SnowReportScreen(screen_manager, self.hill)
+            ),
+            visible=True
+        ))
+
+    # ---------- Helpers ----------
+
+    def _text_size(self, draw, text, font):
+        try:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            return bbox[2] - bbox[0], bbox[3] - bbox[1]
+        except Exception:
+            return draw.textsize(text, font=font)
+
+    def _resolve_history_url(self):
+        """
+        Decide which JSON history endpoint to use for the current hill.
+
+        Priority:
+        1. If hill.url already looks like a JSON endpoint, use it.
+        2. Else, derive from hill.name as http://vps.snowscraper.ca/json/Name_With_Underscores.json
+        3. Fallback to Banff Sunshine JSON.
+        """
+        u = str(getattr(self.hill, "url", "") or "").strip()
+        name = (getattr(self.hill, "name", "") or "").strip()
+
+        # Direct JSON-style URLs
+        if u.endswith(".json") or "/json/" in u:
+            return u
+
+        # Derive from hill name if we have one
+        if name:
+            slug = (
+                name.replace("'", "")
+                    .replace(" ", "_")
+                    .replace("-", "_")
+            )
+            return f"http://vps.snowscraper.ca/json/{slug}.json"
+
+        # Absolute fallback
+        return "http://vps.snowscraper.ca/json/Banff_Sunshine.json"
+
+    def _bar_color_for_cm(self, cm):
+        """
+        LED-style ramp for 24h snowfall.
+        """
+        try:
+            cm = int(cm)
+        except Exception:
+            cm = 0
+        cm = max(0, cm)
+
+        if cm == 0:
+            return (35, 40, 55)          # subtle / no snow
+        if cm <= 2:
+            return (255, 255, 255)       # white
+        if cm <= 5:
+            return (168, 216, 255)       # light blue
+        if cm <= 8:
+            return (0, 72, 255)          # dark blue
+        if cm <= 12:
+            return (128, 0, 255)         # purple
+        if cm <= 15:
+            return (200, 0, 100)         # purple/red blend
+        if cm <= 18:
+            return (139, 0, 0)           # red
+        return (255, 0, 0)               # dark red
+
+    # ---------- Data fetch ----------
+    def _fetch_history(self):
+        try:
+            resp = requests.get(self.url, timeout=6)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as e:
+            print(f"[ChartScreen] Fetch failed from {self.url}: {e}")
+            return []
+
+        entries = []
+        if isinstance(payload, dict):
+            if isinstance(payload.get("history"), list):
+                entries = payload["history"]
+            elif isinstance(payload.get("days"), list):
+                entries = payload["days"]
+            else:
+                for k, v in payload.items():
+                    if isinstance(v, dict):
+                        v = dict(v)
+                        v.setdefault("date", k)
+                        entries.append(v)
+        elif isinstance(payload, list):
+            entries = payload
+
+        norm = []
+        for e in entries:
+            if not isinstance(e, dict):
+                continue
+
+            def pick(keys, default=0):
+                for k in keys:
+                    if k in e:
+                        return e[k]
+                return default
+
+            date_raw = pick(["date", "day", "ts", "timestamp", "label"], "")
+            date_str = str(date_raw)
+            label = date_str[-5:] if len(date_str) >= 5 else date_str
+
+            new24 = _safe_int(pick(["newSnow", "new_24", "snow_24h", "24h"], 0))
+            week = _safe_int(pick(["weekSnow", "new_7d", "snow_7d", "7d"], 0))
+            base = _safe_int(pick(["baseSnow", "base", "base_cm", "baseDepth"], 0))
+
+            norm.append({
+                "label": label,
+                "new24": new24,
+                "week": week,
+                "base": base,
+            })
+
+        return norm[-18:] if len(norm) > 18 else norm
+
+    # ---------- Draw ----------
+    def draw(self, draw_obj):
+        img = Image.new("RGB", (device.width, device.height), self.bg_color)
+        draw = ImageDraw.Draw(img)
+
+        hist = self._fetch_history()
+        if not hist:
+            draw.text(
+                (28, 100),
+                "No chart data.\nCheck VPS JSON.",
+                fill=self.text_color,
+                font=self.font,
+            )
+            # Back button visual
+            back_label = "Back"
+            bx1, by1, bx2, by2 = 240, 210, 310, 239
+            draw.rectangle(
+                (bx1, by1, bx2, by2),
+                outline=self.grid_color,
+                fill=(20, 26, 38),
+            )
+            btw, bth = self._text_size(draw, back_label, self.font)
+            draw.text(
+                (bx1 + (bx2 - bx1 - btw) // 2,
+                 by1 + (by2 - by1 - bth) // 2),
+                back_label,
+                fill=self.text_color,
+                font=self.font,
+            )
+            present(img)
+            return
+
+        # ----- Data prep -----
+        labels = [e["label"] for e in hist]
+        new24_vals = [e["new24"] for e in hist]
+        week_vals = [e["week"] for e in hist]
+        base_vals = [e["base"] for e in hist]
+
+        max_new24 = max(new24_vals) if any(new24_vals) else 0
+        bar_max = max_new24 + 10 if max_new24 > 0 else 5
+
+        max_week = max(week_vals) if any(week_vals) else 0
+        max_base = max(base_vals) if any(base_vals) else 0
+        line_max_raw = max(max_week, max_base, 1)
+        line_max = 20 if line_max_raw <= 20 else ((line_max_raw + 9) // 10) * 10
+
+        # ----- Layout -----
+        left = 35
+        right = 290            # leaves space for right Y-axis labels
+        top = 30
+        bottom = 195
+
+        w = right - left
+        h = bottom - top
+        n = len(hist)
+
+        full_bar_w = max(3, w // max(n, 1))
+        spacing = 2
+        bar_w = max(1, full_bar_w - spacing)
+
+        # Chart box
+        draw.rectangle(
+            (left - 1, top - 1, right + 1, bottom + 1),
+            outline=self.grid_color,
+            width=1,
+        )
+
+        # ----- Grid + Y axes -----
+        steps = 4
+        for i in range(steps + 1):
+            frac = i / steps
+            y = bottom - int(h * frac)
+
+            # grid
+            draw.line((left, y, right, y), fill=self.grid_color)
+
+            # left axis (7d/base)
+            val_left = int(line_max * frac)
+            txt_left = str(val_left)
+            tw, th = self._text_size(draw, txt_left, self.font)
+            draw.text(
+                (left - 6 - tw, y - th // 2),
+                txt_left,
+                fill=self.text_color,
+                font=self.font,
+            )
+
+            # right axis (24h)
+            val_right = int(bar_max * frac)
+            txt_right = str(val_right)
+            tw2, th2 = self._text_size(draw, txt_right, self.font)
+            x_right_label = right + 4
+            if x_right_label + tw2 > device.width - 2:
+                x_right_label = device.width - 2 - tw2
+            draw.text(
+                (x_right_label, y - th2 // 2),
+                txt_right,
+                fill=(120, 180, 255),
+                font=self.font,
+            )
+
+        if bar_max <= 0:
+            bar_max = 1
+
+        # ----- 24h Bars with 2px spacing -----
+        for i, e in enumerate(hist):
+            val = e["new24"]
+            if val <= 0:
+                continue
+            slot_x = left + i * full_bar_w
+            x0 = slot_x + spacing // 2
+            x1 = x0 + bar_w - 1
+            if x0 >= right:
+                continue
+            if x1 > right:
+                x1 = right
+            y = bottom - int((val / float(bar_max)) * h)
+            draw.rectangle(
+                (x0, y, x1, bottom),
+                fill=self._bar_color_for_cm(val),
+            )
+
+        # ----- 7d / Base Lines -----
+        week_color = (160, 80, 255)
+        base_color = (255, 80, 80)
+
+        def plot_line(vals, color):
+            pts = []
+            for i, val in enumerate(vals):
+                v = val or 0
+                x = left + i * full_bar_w + full_bar_w // 2
+                if x > right:
+                    x = right
+                y = bottom - int((v / float(line_max)) * h)
+                pts.append((x, y))
+            if len(pts) > 1:
+                draw.line(pts, fill=color, width=2)
+
+        plot_line(week_vals, week_color)
+        plot_line(base_vals, base_color)
+
+        # ----- X-axis date labels (start, mid, end) -----
+        indices = []
+        if n >= 1:
+            indices.append(0)
+        if n >= 3:
+            indices.append(n // 2)
+        if n >= 2:
+            indices.append(n - 1)
+        indices = sorted(set(indices))
+
+        for i in indices:
+            lab = labels[i]
+            tw, th = self._text_size(draw, lab, self.font)
+            x_center = left + i * full_bar_w + full_bar_w // 2
+            x = max(left, min(right - tw, x_center - tw // 2))
+            y = bottom + 2
+            draw.text((x, y), lab, fill=self.text_color, font=self.font)
+
+        # ----- Title (per-hill) -----
+        title_font = _load_font(size=16)
+        title_name = getattr(self.hill, "name", "History")
+        draw.text(
+            (40, 8),
+            f"{title_name} History",
+            fill=self.text_color,
+            font=title_font,
+        )
+
+        # ----- Compact bottom legend with 24h gradient -----
+        # ----- Two-line compact axis legend (lowered + text tweak) -----
+        legend_x = 10
+        legend_y1 = 211  # was 207, moved down 4px
+        block_h = 8
+        label_font = self.font
+
+        base_color = (255, 80, 80)
+        week_color = (160, 80, 255)
+
+        # --- Line 1: L-Axis [blocks]   R-Axis [gradient] ---
+        laxis_txt = "L-Axis:"
+        laxis_tw, laxis_th = self._text_size(draw, laxis_txt, label_font)
+        draw.text((legend_x, legend_y1), laxis_txt, fill=self.text_color, font=label_font)
+
+        x = legend_x + laxis_tw + 4
+
+        # Base + 7d color blocks
+        draw.rectangle((x, legend_y1 + 3, x + 10, legend_y1 + 3 + block_h), fill=base_color)
+        x += 12
+        draw.rectangle((x, legend_y1 + 3, x + 10, legend_y1 + 3 + block_h), fill=week_color)
+        x += 14
+
+        x += 10  # gap before R-axis
+        legend_x2 = x
+        raxis_txt = "R-Axis:"
+        raxis_tw, raxis_th = self._text_size(draw, raxis_txt, label_font)
+        draw.text((x, legend_y1), raxis_txt, fill=self.text_color, font=label_font)
+        x += raxis_tw + 4
+
+        # 24h Snow gradient block (Snow Scraper canonical)
+        grad_w = 60
+        grad_stops = [
+            (0.00, (168, 216, 255)),  # light blue
+            (0.25, (0, 72, 255)),     # deep blue
+            (0.50, (128, 0, 255)),    # purple
+            (0.75, (139, 0, 0)),      # dark red
+            (1.00, (255, 0, 0)),      # bright red
+        ]
+
+        def _interp_color(c1, c2, t):
+            return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+
+        grad_x1 = x
+        for i in range(grad_w):
+            u = i / float(max(1, grad_w - 1))
+            for j in range(len(grad_stops) - 1):
+                t0, c0 = grad_stops[j]
+                t1, c1 = grad_stops[j + 1]
+                if t0 <= u <= t1:
+                    lt = (u - t0) / (t1 - t0)
+                    col = _interp_color(c0, c1, lt)
+                    break
+            gx = grad_x1 + i
+            draw.line((gx, legend_y1 + 3, gx, legend_y1 + 3 + block_h), fill=col)
+        grad_x2 = grad_x1 + grad_w
+
+        # --- Line 2: text labels ---
+        legend_y2 = legend_y1 + laxis_th + 4
+
+        # "Base/7D" under L-axis blocks
+        b_label = "Base/7D"
+        draw.text((legend_x, legend_y2), b_label, fill=self.text_color, font=label_font)
+
+        # "24HR Snow" under gradient
+        r_label = "24HR Snow"
+
+        draw.text((legend_x2, legend_y2), r_label, fill=self.text_color, font=label_font)
+
+        # ----- Back button -----
+        back_label = "Back"
+        bx1, by1, bx2, by2 = 240, 210, 310, 239
+        draw.rectangle(
+            (bx1, by1, bx2, by2),
+            outline=self.grid_color,
+            fill=(20, 26, 38),
+        )
+        btw, bth = self._text_size(draw, back_label, self.font)
+        draw.text(
+            (bx1 + (bx2 - bx1 - btw) // 2,
+             (by1 + (by2 - by1 - bth) // 2 )- 4),
+            back_label,
+            fill=self.text_color,
+            font=self.font,
+        )
+
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+        present(img)
+
+
 class SnowReportScreen(Screen):
     def __init__(self, screen_manager, hill):
         super().__init__()
@@ -1746,6 +2180,7 @@ class SnowReportScreen(Screen):
         try:
             print(f"[SnowReport] Refreshing data for {self.hill.name}...")
             self.hill.getSnow()
+            leds_set_snow(self.hill.newSnow, self.hill.newSnow)
         except Exception as e:
             print(f"[SnowReport] Failed to refresh: {e}")
         try:
@@ -1758,7 +2193,13 @@ class SnowReportScreen(Screen):
 
         # Back button (invisible hitbox as with others)
         self.add_button(
-            Button(270, 190, 300, 220, "Back", lambda: screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill)), visible=False)
+            Button(270, 185, 315, 230, "Back", lambda: screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill)), visible=False)
+        )
+        # Charts button (bottom-left, visible)
+        self.add_button(
+            Button(5, 185, 55, 230, "Charts",
+                   lambda: screen_manager.set_screen(ChartScreen(screen_manager, screen_manager.hill)),
+                   visible=False)
         )
 
     def draw(self, draw_obj):
@@ -1826,7 +2267,7 @@ class SelectResortScreen(Screen):
             "Lake Louise",
             "Banff Sunshine",
             "Red Mountain",
-            "White Water",
+            "Whitewater",
         ]
         self.current_index = 0
 
@@ -2394,27 +2835,37 @@ def main():
                     screen_manager.redraw()
                 except Exception:
                     pass
-            try:
-                sn = hill.newSnow
-                if isinstance(sn, str):
-                    sn = _safe_int(sn)
-                current_snow_cm = int(sn)
-                if not hasattr(main, "_prev_snow_cm"):
-                    main._prev_snow_cm = current_snow_cm
-                #update LEDs if snow amount changed
-                if current_snow_cm != main._prev_snow_cm:
-                    print(f"[Snow] Change detected: {main._prev_snow_cm} -> {current_snow_cm}")
-                    if current_snow_cm > main._prev_snow_cm and hasattr(screen_manager, "overlay"):
-                        screen_manager.overlay.trigger(current_snow_cm - main._prev_snow_cm)
-                    else:
-                        screen_manager.overlay.stop()
-                leds_set_snow(current_snow_cm, main._prev_snow_cm)
-                main._prev_snow_cm = current_snow_cm
 
+                try:
+                    sn = hill.newSnow
+                    if isinstance(sn, str):
+                        sn = _safe_int(sn)
+                    current_snow_cm = int(sn)
 
+                    prev = getattr(main, "_prev_snow_cm", None)
 
-            except Exception:
-                current_snow_cm = 0
+                    # First run: initialize LEDs once
+                    if prev is None:
+                        main._prev_snow_cm = current_snow_cm
+                        leds_set_snow(current_snow_cm, current_snow_cm)
+
+                    # Subsequent runs: only react when value changes
+                    elif current_snow_cm != prev:
+                        print(f"[Snow] Change detected: {prev} -> {current_snow_cm}")
+
+                        # Snowfall overlay trigger/stop
+                        if current_snow_cm > prev and hasattr(screen_manager, "overlay"):
+                            screen_manager.overlay.trigger(current_snow_cm - prev)
+                        elif hasattr(screen_manager, "overlay"):
+                            screen_manager.overlay.stop()
+
+                        # Update LEDs based on this change
+                        leds_set_snow(current_snow_cm, prev)
+
+                        main._prev_snow_cm = current_snow_cm
+
+                except Exception:
+                    current_snow_cm = 0
 
             try:
                 check_and_trigger_alarm(current_snow_cm)
