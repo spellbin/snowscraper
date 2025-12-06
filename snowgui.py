@@ -16,8 +16,7 @@ from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from packaging import version
-from bs4 import BeautifulSoup
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from luma.core.interface.serial import spi
 from luma.lcd.device import ili9341
 from debug_hud import draw_cpu_badge, draw_wifi_bars_badge
@@ -34,7 +33,7 @@ UPDATER_UNIT = "snowgui-updater"     # transient unit name used for updates
 VERSION_FILE = os.path.join(LOCAL_REPO_PATH, "VERSION")  # Path to version file
 MAX_RETRIES = 3
 RETRY_DELAY = 5
-VERBOSE = False # set True for extra console logging ie. each touch read // cpu temp badge
+VERBOSE = False # set True for extra console logging ie. each touch read
 GITHUB_TOKEN = None  # Optional GitHub token for private repos
 CALIBRATION_FILE = "/home/pi/snowscraper/conf/touch_calibration.json"
 HEARTBEAT_FILE = "/home/pi/snowscraper/heartbeat.txt"
@@ -43,7 +42,94 @@ HEARTBEAT_INTERVAL = 10  # seconds
 DEV_MODE = False  # set True to avoid hitting live scrapers
 SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.json"
 
+# Brightness profiles: shared by LCD dim overlay and LED scaling
+BRIGHTNESS_CONF_FILE = "/home/pi/snowscraper/conf/brightness.conf"
+BRIGHTNESS_LEVELS = [
+    {"name": "Full", "scale": 1.0, "menu_bg": "images/mainmenu_night.png"},
+    {"name": "Dim",  "scale": 0.35, "menu_bg": "images/mainmenu_day.png"},
+]
+
+# Shared resort metadata used across the UI.
+RESORT_NAMES = [
+    "Sun Peaks",
+    "Silver Star",
+    "Big White",
+    "Whistler",
+    "Revelstoke",
+    "Kicking Horse",
+    "Lake Louise",
+    "Banff Sunshine",
+    "Red Mountain",
+    "Whitewater",
+    "Apex Mountain",
+    "Banff Norquay",
+    "Fernie",
+    "Powder King",
+]
+
+
+# Alarm config cache (avoid disk IO every heartbeat iteration)
+_alarm_cfg_cache = None
+_alarm_cfg_lock = threading.RLock()
+
 print(f"[BOOT] DEV_MODE = {DEV_MODE}")
+
+
+# ----------------------------
+# Brightness state (LCD dim overlay + LED scaling)
+# ----------------------------
+def _read_brightness_index(path=BRIGHTNESS_CONF_FILE, default=0) -> int:
+    try:
+        with open(path, "r") as f:
+            raw = f.read().strip()
+        idx = int(raw)
+        return max(0, min(idx, len(BRIGHTNESS_LEVELS) - 1))
+    except Exception:
+        return default
+
+
+def _write_brightness_index(index: int, path=BRIGHTNESS_CONF_FILE) -> bool:
+    try:
+        index = max(0, min(index, len(BRIGHTNESS_LEVELS) - 1))
+        with open(path, "w") as f:
+            f.write(str(index))
+        return True
+    except Exception as e:
+        print(f"[Brightness] Failed to write {path}: {e}")
+        return False
+
+
+class BrightnessState:
+    def __init__(self):
+        self.levels = list(BRIGHTNESS_LEVELS)
+        self.index = _read_brightness_index()
+        self._apply_index(self.index)
+
+    def _apply_index(self, idx: int):
+        if not self.levels:
+            self.levels = [{"name": "Full", "scale": 1.0, "menu_bg": "images/mainmenu.png"}]
+        self.index = max(0, min(idx, len(self.levels) - 1))
+        level = self.levels[self.index]
+        self.name = level.get("name", "")
+        self.scale = float(level.get("scale", 1.0))
+        self.menu_bg = level.get("menu_bg", "images/mainmenu.png")
+
+    def cycle(self):
+        """Advance to the next brightness profile and persist."""
+        next_idx = (self.index + 1) % len(self.levels)
+        self._apply_index(next_idx)
+        _write_brightness_index(self.index)
+
+    def set_index(self, idx: int):
+        self._apply_index(idx)
+        _write_brightness_index(self.index)
+
+    def is_dim(self) -> bool:
+        return self.scale < 0.99
+
+
+# Singleton brightness controller
+brightness_state = BrightnessState()
 
 # ---- Global hill singleton ---------------------------------
 hill = None  # skiHill instance; refreshed when skihill.conf changes
@@ -377,6 +463,7 @@ class SnowLEDs:
         self._steady_brightness = 0.35   # used when NOT breathing
         self._current_cm = 0
         self._prev_cm = 0
+        self._global_scale = getattr(brightness_state, "scale", 1.0)
 
         if _HAS_PIXELS:
             try:
@@ -480,11 +567,13 @@ class SnowLEDs:
 
     # ---------- internals ----------
     def _paint_solid(self, rgb, brightness):
-        r, g, b = rgb
-        r = int(r * brightness); g = int(g * brightness); b = int(b * brightness)
-        for i in range(self.strip.numPixels()):
-            self._set_pixel(i, (r, g, b))
-        self.strip.show()
+        with self._lock:
+            r, g, b = rgb
+            brightness = max(0.0, min(1.0, brightness * self._global_scale))
+            r = int(r * brightness); g = int(g * brightness); b = int(b * brightness)
+            for i in range(self.strip.numPixels()):
+                self._set_pixel(i, (r, g, b))
+            self.strip.show()
 
     def _set_pixel(self, i, rgb):
         r, g, b = rgb
@@ -557,6 +646,19 @@ class SnowLEDs:
             self.strip.show()
             time.sleep(0.08)
 
+    def set_global_brightness(self, scale: float):
+        """Apply a global brightness scalar (shared dimmer). Repaint immediately."""
+        try:
+            scale = float(scale)
+        except Exception:
+            scale = 1.0
+        scale = max(0.05, min(1.0, scale))
+        self._global_scale = scale
+        # repaint current state so dimmer takes effect right away
+        base = self._base_color
+        brightness = self._steady_brightness if self._breath_thread is None else 0.50
+        self._paint_solid(base, brightness)
+
     # ----- color helpers -----
     def _color_for_cm(self, cm):
         """1..10: light blue -> deep blue -> purple; 10..20: purple -> dark red -> bright red."""
@@ -611,6 +713,12 @@ def leds_rainbow_splash(duration_sec=5.0):
 
 def leds_clear():
     _leds.clear()
+
+def leds_set_brightness(scale: float):
+    _leds.set_global_brightness(scale)
+
+# Apply persisted brightness level to LEDs on import
+leds_set_brightness(getattr(brightness_state, "scale", 1.0))
 
 # ----------------------------
 # LED demo utilities (no network needed)
@@ -703,20 +811,8 @@ def _load_font(path="fonts/pixem.otf", size=18):
 # ----------------------------
 # Alarm config
 # ----------------------------
-def load_alarm_cfg():
-    """
-    alarm.conf schema:
-    {
-      "active": bool,
-      "active_anytime": bool,
-      "hour": "HH",
-      "minute": "MM",
-      "triggered_snow": "int",
-      "incremental_snow": "int",
-      "state": {"day": "YYYY-MM-DD", "triggered_today": bool, "next_threshold": int|null}
-    }
-    """
-    cfg = {
+def _default_alarm_cfg():
+    return {
         "active": False,
         "active_anytime": False,
         "hour": "0",
@@ -725,29 +821,47 @@ def load_alarm_cfg():
         "incremental_snow": "0",
         "state": {"day": _today_str(), "triggered_today": False, "next_threshold": None},
     }
-    try:
-        if os.path.exists(ALARM_CONF_FILE):
-            with open(ALARM_CONF_FILE, "r") as f:
-                disk = json.load(f)
-            for k in ["active", "active_anytime", "hour", "minute", "triggered_snow", "incremental_snow"]:
-                if k in disk:
-                    cfg[k] = disk[k]
-            if isinstance(disk.get("state"), dict):
-                for k in ["day", "triggered_today", "next_threshold"]:
-                    if k in disk["state"]:
-                        cfg["state"][k] = disk["state"][k]
-    except Exception as e:
-        print(f"[Alarm] load_alarm_cfg error: {e}")
-    return cfg
+
+
+def load_alarm_cfg(force_reload: bool = False):
+    """
+    Lazily loads alarm.conf into memory and reuses the cached dict for future calls.
+    Set force_reload=True to discard the cache and read from disk again.
+    """
+    global _alarm_cfg_cache
+    with _alarm_cfg_lock:
+        if _alarm_cfg_cache is not None and not force_reload:
+            return _alarm_cfg_cache
+
+        cfg = _default_alarm_cfg()
+        try:
+            if os.path.exists(ALARM_CONF_FILE):
+                with open(ALARM_CONF_FILE, "r") as f:
+                    disk = json.load(f)
+                for k in ["active", "active_anytime", "hour", "minute", "triggered_snow", "incremental_snow"]:
+                    if k in disk:
+                        cfg[k] = disk[k]
+                if isinstance(disk.get("state"), dict):
+                    for k in ["day", "triggered_today", "next_threshold"]:
+                        if k in disk["state"]:
+                            cfg["state"][k] = disk["state"][k]
+        except Exception as e:
+            print(f"[Alarm] load_alarm_cfg error: {e}")
+
+        _alarm_cfg_cache = cfg
+        return _alarm_cfg_cache
 
 
 def save_alarm_cfg(cfg):
-    try:
-        with open(ALARM_CONF_FILE, "w") as f:
-            json.dump(cfg, f)
-        print("[Alarm] alarm.conf saved.")
-    except Exception as e:
-        print(f"[Alarm] save_alarm_cfg error: {e}")
+    global _alarm_cfg_cache
+    with _alarm_cfg_lock:
+        try:
+            with open(ALARM_CONF_FILE, "w") as f:
+                json.dump(cfg, f)
+            _alarm_cfg_cache = cfg
+            print("[Alarm] alarm.conf saved.")
+        except Exception as e:
+            print(f"[Alarm] save_alarm_cfg error: {e}")
 
 
 def reset_state_if_new_day(cfg):
@@ -1028,10 +1142,35 @@ def init_display():
 display_lock = threading.RLock()
 overlay = SnowfallOverlay(get_size=lambda: (device.width, device.height))
 
+def _apply_dim_overlay(img, scale: float):
+    """
+    Software dimming for panels without hardware backlight control.
+    Uses a simple brightness enhancer; scale=1 leaves image unchanged.
+    """
+    try:
+        scale = float(scale)
+    except Exception:
+        return img
+    if scale >= 0.999:
+        return img
+    scale = max(0.05, min(1.0, scale))
+    try:
+        return ImageEnhance.Brightness(img).enhance(scale)
+    except Exception:
+        # fallback to simple blend if enhancer is unavailable
+        overlay_img = Image.new("RGB", img.size, (0, 0, 0))
+        alpha = 1.0 - scale
+        return Image.blend(img, overlay_img, alpha)
+
 def present(img):
     with display_lock:
         if img.mode != "RGB":
             img = img.convert("RGB")
+        try:
+            dim_scale = getattr(brightness_state, "scale", 1.0)
+        except Exception:
+            dim_scale = 1.0
+        img = _apply_dim_overlay(img, dim_scale)
         device.display(img)
 
 
@@ -1043,6 +1182,58 @@ def _read_selected_resort_index(path="conf/skihill.conf") -> int:
     except Exception as e:
         print(f"[SelectResort] Could not read {path}: {e}. Using 0.")
         return 0
+
+
+def _write_selected_resort_index(index: int, path="conf/skihill.conf") -> bool:
+    """Clamp and persist the selected resort index."""
+    try:
+        index = max(0, min(index, len(RESORT_NAMES) - 1))
+        with open(path, "w") as f:
+            f.write(str(index))
+        return True
+    except Exception as e:
+        print(f"[SelectResort] Failed to write {path}: {e}")
+        return False
+
+
+def _resort_slug(name: str) -> str:
+    """Convert a resort name to the JSON filename used on the VPS."""
+    slug = (name or "").strip()
+    slug = slug.replace("'", "").replace("-", "_").replace(" ", "_")
+    slug = re.sub(r"_+", "_", slug)
+    return slug or "Unknown"
+
+
+def _load_resort_json(name: str) -> dict:
+    """
+    Fetch the resort JSON payload from the VPS (with local fallback).
+    Returns {} on failure.
+    """
+    slug = _resort_slug(name)
+    base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json").rstrip("/")
+    json_url = f"{base_url}/{slug}.json"
+    data = {}
+
+    try:
+        resp = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/2.3.0"})
+        resp.raise_for_status()
+        data = resp.json() if resp.content else {}
+    except Exception as e_http:
+        print(f"[{name}] HTTP JSON fetch failed ({e_http}); trying local fallback.")
+
+    if not data:
+        try:
+            local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
+            local_path = os.path.join(local_dir, f"{slug}.json")
+            if os.path.exists(local_path):
+                with open(local_path, "r") as f:
+                    data = json.load(f)
+            else:
+                print(f"[{name}] Local JSON not found at {local_path}")
+        except Exception as e_file:
+            print(f"[{name}] Failed to read local JSON: {e_file}")
+
+    return data if isinstance(data, dict) else {}
 
 
 # ----------------------------
@@ -1121,336 +1312,19 @@ class skiHill:
             self.weekSnow = 3
             self.baseSnow = 120
             return
-        
-        if self.name == "Whitewater":
-            # Use Snow Plow's aggregated JSON instead of scraping the live site.
-            # Configure the base via env var if needed:
-            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
-            # Optional local fallback directory:
-            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("[getSnow] " + self.name)
-
-            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
-            json_url = f"{base_url.rstrip('/')}/Whitewater.json"
-
-            try:
-                # Try the VPS HTTP endpoint first
-                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
-                r.raise_for_status()
-                data = r.json() if r.content else {}
-            except Exception as e_http:
-                # Fallback to a local/mounted directory if present
-                data = {}
-                try:
-                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-                    local_path = os.path.join(local_dir, "Whitewater.json")
-                    if os.path.exists(local_path):
-                        with open(local_path, "r") as f:
-                            data = json.load(f)
-                    else:
-                        print(f"[Whitewater] Neither HTTP nor local JSON available ({e_http})")
-                except Exception as e_file:
-                    print(f"[Whitewater] Failed to read local JSON: {e_file}")
-
-            cur = data.get("current") or {}
-            self.newSnow  = _safe_int(cur.get("newSnow", 0))
-            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
-            log_snow_data(self)
-
-        if self.name == "Kicking Horse":
-            # Use Snow Plow's aggregated JSON instead of scraping the live site.
-            # Configure the base via env var if needed:
-            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
-            # Optional local fallback directory:
-            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("[getSnow] " + self.name)
-
-            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
-            json_url = f"{base_url.rstrip('/')}/Kicking_Horse.json"
-
-            try:
-                # Try the VPS HTTP endpoint first
-                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
-                r.raise_for_status()
-                data = r.json() if r.content else {}
-            except Exception as e_http:
-                # Fallback to a local/mounted directory if present
-                data = {}
-                try:
-                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-                    local_path = os.path.join(local_dir, "Kicking_Horse.json")
-                    if os.path.exists(local_path):
-                        with open(local_path, "r") as f:
-                            data = json.load(f)
-                    else:
-                        print(f"[Banff Sunshine] Neither HTTP nor local JSON available ({e_http})")
-                except Exception as e_file:
-                    print(f"[Banff Sunshine] Failed to read local JSON: {e_file}")
-
-            cur = data.get("current") or {}
-            self.newSnow  = _safe_int(cur.get("newSnow", 0))
-            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
-            log_snow_data(self)
-
-        if self.name == "Red Mountain":
-            print("[getSnow] " + self.name)
-            response = requests.get(self.url, timeout=10)
-            response.raise_for_status()
-            response_text = response.text
-
-            patterns = {
-                "24_hour": r'"Metric24hours":\s*(\d+)',
-                "7_day": r'"Metric7days":\s*(\d+)',
-                "base_depth": r'"MetricAlpineSnowDepth":\s*(\d+)',
-            }
-
-            snow_metrics = {}
-            for metric, pattern in patterns.items():
-                match = re.search(pattern, response_text)
-                snow_metrics[metric] = int(match.group(1)) if match else 0
-
-            self.newSnow = snow_metrics["24_hour"]
-            self.weekSnow = snow_metrics["7_day"]
-            self.baseSnow = snow_metrics["base_depth"]
-            log_snow_data(self)
-
-        if self.name == "Banff Sunshine":
-            # Use Snow Plow's aggregated JSON instead of scraping the live site.
-            # Configure the base via env var if needed:
-            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
-            # Optional local fallback directory:
-            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("[getSnow] " + self.name)
-
-            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
-            json_url = f"{base_url.rstrip('/')}/Banff_Sunshine.json"
-
-            try:
-                # Try the VPS HTTP endpoint first
-                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
-                r.raise_for_status()
-                data = r.json() if r.content else {}
-            except Exception as e_http:
-                # Fallback to a local/mounted directory if present
-                data = {}
-                try:
-                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-                    local_path = os.path.join(local_dir, "Banff_Sunshine.json")
-                    if os.path.exists(local_path):
-                        with open(local_path, "r") as f:
-                            data = json.load(f)
-                    else:
-                        print(f"[Banff Sunshine] Neither HTTP nor local JSON available ({e_http})")
-                except Exception as e_file:
-                    print(f"[Banff Sunshine] Failed to read local JSON: {e_file}")
-
-            cur = data.get("current") or {}
-            self.newSnow  = _safe_int(cur.get("newSnow", 0))
-            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
-            log_snow_data(self)
-
-        if self.name == "Lake Louise":
-            # Use Snow Plow's aggregated JSON instead of scraping the live site.
-            # Configure the base via env var if needed:
-            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
-            # Optional local fallback directory:
-            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("[getSnow] " + self.name)
-
-            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
-            json_url = f"{base_url.rstrip('/')}/Lake_Louise.json"
-
-            try:
-                # Try the VPS HTTP endpoint first
-                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
-                r.raise_for_status()
-                data = r.json() if r.content else {}
-            except Exception as e_http:
-                # Fallback to a local/mounted directory if present
-                data = {}
-                try:
-                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-                    local_path = os.path.join(local_dir, "Lake_Louise.json")
-                    if os.path.exists(local_path):
-                        with open(local_path, "r") as f:
-                            data = json.load(f)
-                    else:
-                        print(f"[Lake_Louise] Neither HTTP nor local JSON available ({e_http})")
-                except Exception as e_file:
-                    print(f"[Lake_Louise] Failed to read local JSON: {e_file}")
-
-            cur = data.get("current") or {}
-            self.newSnow  = _safe_int(cur.get("newSnow", 0))
-            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
-            log_snow_data(self)
-
-        if self.name == "Revelstoke":
-            # Use Snow Plow's aggregated JSON instead of scraping the live site.
-            # Configure the base via env var if needed:
-            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
-            # Optional local fallback directory:
-            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("[getSnow] " + self.name)
-
-            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
-            json_url = f"{base_url.rstrip('/')}/Revelstoke.json"
-
-            try:
-                # Try the VPS HTTP endpoint first
-                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
-                r.raise_for_status()
-                data = r.json() if r.content else {}
-            except Exception as e_http:
-                # Fallback to a local/mounted directory if present
-                data = {}
-                try:
-                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-                    local_path = os.path.join(local_dir, "Revelstoke.json")
-                    if os.path.exists(local_path):
-                        with open(local_path, "r") as f:
-                            data = json.load(f)
-                    else:
-                        print(f"[Revelstoke] Neither HTTP nor local JSON available ({e_http})")
-                except Exception as e_file:
-                    print(f"[Revelstoke] Failed to read local JSON: {e_file}")
-
-            cur = data.get("current") or {}
-            self.newSnow  = _safe_int(cur.get("newSnow", 0))
-            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
-            log_snow_data(self)
-
-        if self.name == "Sun Peaks":
-              # Use Snow Plow's aggregated JSON instead of scraping the live site.
-            # Configure the base via env var if needed:
-            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
-            # Optional local fallback directory:
-            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("[getSnow] " + self.name)
-
-            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
-            json_url = f"{base_url.rstrip('/')}/Sun_Peaks.json"
-
-            try:
-                # Try the VPS HTTP endpoint first
-                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
-                r.raise_for_status()
-                data = r.json() if r.content else {}
-            except Exception as e_http:
-                # Fallback to a local/mounted directory if present
-                data = {}
-                try:
-                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-                    local_path = os.path.join(local_dir, "Sun_Peaks.json")
-                    if os.path.exists(local_path):
-                        with open(local_path, "r") as f:
-                            data = json.load(f)
-                    else:
-                        print(f"[Sun Peaks] Neither HTTP nor local JSON available ({e_http})")
-                except Exception as e_file:
-                    print(f"[Sun Peaks] Failed to read local JSON: {e_file}")
-
-            cur = data.get("current") or {}
-            self.newSnow  = _safe_int(cur.get("newSnow", 0))
-            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
-            log_snow_data(self)
-
-        if self.name == "Whistler":
-            print("[getSnow] " + self.name)
-            response = requests.get(self.url, timeout=10)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, "html.parser")
-                script_tag = soup.find("script", string=re.compile(r"FR\.snowReportData\s*="))
-                if script_tag and script_tag.string:
-                    script_content = script_tag.string
-                    match = re.search(r"FR\.snowReportData\s*=\s*({.*?});", script_content, re.DOTALL)
-                    if match:
-                        json_data = match.group(1)
-                        snow_report_data = json.loads(json_data)
-                        overnight_cm = snow_report_data.get("OvernightSnowfall", {}).get("Centimeters")
-                        seven_day_cm = snow_report_data.get("SevenDaySnowfall", {}).get("Centimeters")
-                        base_depth_cm = snow_report_data.get("BaseDepth", {}).get("Centimeters")
-                        self.newSnow = _safe_int(overnight_cm)
-                        self.weekSnow = _safe_int(seven_day_cm)
-                        self.baseSnow = _safe_int(base_depth_cm)
-                        log_snow_data(self)
-                    else:
-                        print("[Whistler] Failed to extract JSON data from the script tag.")
-                else:
-                    print("[Whistler] Script tag containing snow report data not found.")
-            else:
-                print(f"[Whistler] HTTP Status: {response.status_code}")
-
-        if self.name == "Big White":
-            # Use Snow Plow's aggregated JSON instead of scraping the live site.
-            # Configure the base via env var if needed:
-            #   export SNOWPLOW_JSON_BASE="http://vps.snowscraper.ca/json"
-            # Optional local fallback directory:
-            #   export SNOWPLOW_JSON_DIR="/opt/snowplow/data/json"
-            print("[getSnow] " + self.name)
-
-            base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json")
-            json_url = f"{base_url.rstrip('/')}/Big_White.json"
-
-            try:
-                # Try the VPS HTTP endpoint first
-                r = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/1.0"})
-                r.raise_for_status()
-                data = r.json() if r.content else {}
-            except Exception as e_http:
-                # Fallback to a local/mounted directory if present
-                data = {}
-                try:
-                    local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-                    local_path = os.path.join(local_dir, "Big_White.json")
-                    if os.path.exists(local_path):
-                        with open(local_path, "r") as f:
-                            data = json.load(f)
-                    else:
-                        print(f"[Big White] Neither HTTP nor local JSON available ({e_http})")
-                except Exception as e_file:
-                    print(f"[Big White] Failed to read local JSON: {e_file}")
-
-            cur = data.get("current") or {}
-            self.newSnow  = _safe_int(cur.get("newSnow", 0))
-            self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-            self.baseSnow = _safe_int(cur.get("baseSnow", 0))
-            log_snow_data(self)
+        print(f"[getSnow] {self.name}")
+        data = _load_resort_json(self.name)
+        cur = data.get("current") or {}
+        self.newSnow = _safe_int(cur.get("newSnow", 0))
+        self.weekSnow = _safe_int(cur.get("weekSnow", 0))
+        self.baseSnow = _safe_int(cur.get("baseSnow", 0))
+        log_snow_data(self)
 
 
 def create_selected_hill():
-    names = [
-        "Sun Peaks",
-        "Silver Star",
-        "Big White",
-        "Whistler",
-        "Revelstoke",
-        "Kicking Horse",
-        "Lake Louise",
-        "Banff Sunshine",
-        "Red Mountain",
-        "Whitewater",
-    ]
-    urls = {
-        "Sun Peaks": "https://www.sunpeaksresort.com/snow-report",
-        "Silver Star": "https://www.skisilverstar.com/conditions/",
-        "Big White": "https://www.bigwhite.com/conditions/snow-report",
-        "Whistler": "https://www.whistlerblackcomb.com/the-mountain/mountain-conditions/snow-and-weather-report.aspx",
-        "Revelstoke": "https://www.revelstokemountainresort.com/mountain-report",
-        "Kicking Horse": "https://kickinghorseresort.com/conditions/snow-report/",
-        "Lake Louise": "https://www.skilouise.com/conditions-and-weather/",
-        "Banff Sunshine": "https://www.skibanff.com/conditions",
-        "Red Mountain": "https://api.redresort.com/snowreport",
-        "Whitewater": "https://whitewatermountainresort.com/conditions/",
-    }
-    idx = max(0, min(_read_selected_resort_index(), len(names) - 1))
-    name = names[idx]
-    return skiHill(name=name, url=urls.get(name, ""), newSnow=0, weekSnow=0, baseSnow=0)
+    idx = max(0, min(_read_selected_resort_index(), len(RESORT_NAMES) - 1))
+    name = RESORT_NAMES[idx]
+    return skiHill(name=name, url="", newSnow=0, weekSnow=0, baseSnow=0)
 
 def reload_hill():
     """Refresh the global hill from skihill.conf."""
@@ -1748,21 +1622,36 @@ class MainMenuScreen(Screen):
         self.screen_manager = screen_manager
         self.hill = hill
         try:
-            self.bg_image = Image.open("images/mainmenu.png").convert("RGB").resize((device.width, device.height))
-            draw_wifi_bars_badge(self.bg_image, pos="top-right")
+            # dim -> day art, full -> night art
+            bg_path = "images/mainmenu_night.png" if getattr(brightness_state, "scale", 1.0) < 0.99 else "images/mainmenu_day.png"
+            self.bg_image = Image.open(bg_path).convert("RGB").resize((device.width, device.height))
+            draw_wifi_bars_badge(self.bg_image, pos="top-right", margin_y=14)
             if VERBOSE:
                 draw_cpu_badge(self.bg_image, pos="top-left")
         except FileNotFoundError:
             print("⚠️ images/mainmenu.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
 
+        # top-left dim toggle (invisible hitbox over background art)
+        self.add_button(Button(5, 5, 55, 45, "Dim", self._toggle_brightness, visible=False))
         self.add_button(Button(60, 100, 260, 130, "Mountain Report", lambda: screen_manager.set_screen(SnowReportScreen(screen_manager, screen_manager.hill))))
         self.add_button(Button(60, 140, 260, 165, "Avy Conditions", lambda: screen_manager.set_screen(ImageScreen("images/aconditions.png", screen_manager, screen_manager.hill))))
-        self.add_button(Button(60, 175, 260, 200, "Config", lambda: screen_manager.set_screen(ImageScreen("images/config.png", screen_manager, screen_manager.hill))))
-        self.add_button(Button(60, 210, 260, 230, "Update", lambda: screen_manager.set_screen(UpdateScreen(screen_manager, screen_manager.hill)), visible=False))
+        self.add_button(Button(60, 206, 260, 237, "Config", lambda: screen_manager.set_screen(ImageScreen("images/config.png", screen_manager, screen_manager.hill))))
+        self.add_button(Button(60, 175, 260, 200, "Powder Drive", lambda: screen_manager.set_screen(PowderDriveSplashScreen(screen_manager))))
+        self.add_button(Button(275, 198, 318, 238, "Update", lambda: screen_manager.set_screen(UpdateScreen(screen_manager, screen_manager.hill)), visible=False))
 
     def draw(self, draw_obj):
         present(self.bg_image.copy())
+
+    def _toggle_brightness(self):
+        brightness_state.cycle()
+        leds_set_brightness(brightness_state.scale)
+        try:
+            show_popup_message(f"Brightness: {brightness_state.name}", duration=1.5)
+        except Exception:
+            pass
+        # Reload main menu to pick up the correct background image
+        self.screen_manager.set_screen(MainMenuScreen(self.screen_manager, self.screen_manager.hill))
 
 class ChartScreen(Screen):
     """
@@ -2171,6 +2060,146 @@ class ChartScreen(Screen):
             self.screen_manager.overlay.update_base(img)
         present(img)
 
+# ---------------------------------------------------------------------
+# Powder Drive Splash + Main Screen
+# ---------------------------------------------------------------------
+class PowderDriveSplashScreen(Screen):
+    """
+    Shows pdrive_splash.png for ~2 seconds while the API request runs.
+    Then transitions automatically to PowderDriveScreen with results.
+    """
+    def __init__(self, screen_manager):
+        super().__init__()
+        self.screen_manager = screen_manager
+        try:
+            self.splash = Image.open("images/pdrive_splash.png").convert("RGB") \
+                .resize((device.width, device.height))
+        except FileNotFoundError:
+            print("⚠️ images/pdrive_splash.png not found, using blank.")
+            self.splash = Image.new("RGB", (device.width, device.height), "black")
+
+        # Start worker thread immediately
+        threading.Thread(target=self._fetch_and_transition, daemon=True).start()
+
+    def _fetch_and_transition(self):
+        # Show splash for at least 2 seconds
+        t0 = time.time()
+
+        # 1. Guess location via ipapi.co
+        city = "Kamloops, BC"   # safe default so we always have a value
+        origin = city
+        try:
+            r = requests.get("https://ipapi.co/json", timeout=5)
+            payload = r.json() if r.content else {}
+            city = (payload.get("city") or "").strip() or city
+            region = (payload.get("region") or "").strip()
+            origin = f"{city}, {region}".strip(", ") if region else city
+            origin = origin.strip() or "Kamloops, BC"
+            print(f"[PowderDrive] Origin: {origin}")
+        except Exception:
+            origin = "Kamloops, BC"
+            city = origin
+            print("[PowderDrive] Origin: default Kamloops, BC")
+
+        # 2. Query PowderDrive API
+        url = ("https://plow.snowscraper.ca/api/powderdrive"
+               f"?q={requests.utils.quote(origin)}"
+               "&max_hours=6&min_snow_cm=0&top_n=5")
+
+        results = []
+        try:
+            resp = requests.get(url, timeout=20)
+            print(f"[PowderDrive] API status: {resp.status_code}")
+            data = resp.json()
+            results = data.get("results", [])
+            print(f"[PowderDrive] API results: {len(results)}")
+        except Exception as e:
+            print(f"[PowderDrive] API error: {e}")
+
+        # Ensure splash lasts 2s
+        dt = time.time() - t0
+        if dt < 2:
+            time.sleep(2 - dt)
+
+        # Switch to main PD screen
+        self.screen_manager.set_screen(
+            PowderDriveScreen(self.screen_manager, city, results)
+        )
+
+    def draw(self, draw_obj):
+        present(self.splash)
+
+
+class PowderDriveScreen(Screen):
+    """
+    Displays the Powder Drive results using pdrive.png as a background.
+    """
+    def __init__(self, screen_manager, origin, results):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.origin = origin
+        self.results = results[:5] if isinstance(results, list) else []
+
+        # Background image (320×240)
+        try:
+            self.bg = Image.open("images/pdrive.png").convert("RGB") \
+                .resize((device.width, device.height))
+        except Exception:
+            print("⚠️ Missing images/pdrive.png, using black fill.")
+            self.bg = Image.new("RGB", (device.width, device.height), "black")
+
+        # Back button
+        self.add_button(Button(
+            250, 210, 310, 235,
+            "Back",
+            lambda: screen_manager.set_screen(
+                MainMenuScreen(screen_manager, screen_manager.hill)
+            ),
+            visible=False
+        ))
+
+    def draw(self, draw_obj):
+        # Render start: background image
+        img = self.bg.copy()
+        draw = ImageDraw.Draw(img)
+
+        title_font = _load_font(size=14)
+        row_font = _load_font(size=11)
+        
+        draw.text((186, 39), f"{self.origin[:12]}", fill="white", font=title_font)
+
+        # Table rows
+        y = 89
+        for item in self.results:
+            name = item.get("name", "")
+            try:
+                snow_val = float(item.get("snow_24h_cm", 0))
+                snow = f"{snow_val:.0f} cm"
+            except Exception:
+                snow = f"{item.get('snow_24h_cm', '')} cm"
+            try:
+                dist_val = float(item.get("distance_km", 0))
+                dist = f"{dist_val:.0f} km"
+            except Exception:
+                dist = f"{item.get('distance_km', '')} km"
+
+            draw.text((60,  y), name[:13], fill="black", font=row_font)
+            draw.text((184, y), dist,      fill="black", font=row_font)
+            draw.text((258, y), snow,      fill="black", font=row_font)
+
+            y += 23
+
+        # buttons
+        for btn in self.buttons:
+            btn.draw(draw)
+
+        # overlay update
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+        present(img)
+
+
 
 class SnowReportScreen(Screen):
     def __init__(self, screen_manager, hill):
@@ -2201,6 +2230,27 @@ class SnowReportScreen(Screen):
                    lambda: screen_manager.set_screen(ChartScreen(screen_manager, screen_manager.hill)),
                    visible=False)
         )
+        # Resort navigation (invisible hitboxes at mid-left / mid-right)
+        self.add_button(
+            Button(2, 2, 105, 30, "PrevResort", lambda: self._cycle_resort(-1), visible=False)
+        )
+        self.add_button(
+            Button(215, 2, 318, 30, "NextResort", lambda: self._cycle_resort(1), visible=False)
+        )
+
+    def _cycle_resort(self, direction: int):
+        """Load the previous/next resort and refresh the report screen."""
+        total = len(RESORT_NAMES)
+        if total == 0:
+            return
+        current_index = _read_selected_resort_index()
+        next_index = (current_index + direction) % total
+        if not _write_selected_resort_index(next_index):
+            return
+
+        new_hill = reload_hill()
+        self.screen_manager.hill = new_hill
+        self.screen_manager.set_screen(SnowReportScreen(self.screen_manager, new_hill))
 
     def draw(self, draw_obj):
         img = self.bg_image.copy()
@@ -2257,19 +2307,8 @@ class SelectResortScreen(Screen):
         super().__init__()
         self.screen_manager = screen_manager
         self.hill = hill
-        self.skiHills = [
-            "Sun Peaks",
-            "Silver Star",
-            "Big White",
-            "Whistler",
-            "Revelstoke",
-            "Kicking Horse",
-            "Lake Louise",
-            "Banff Sunshine",
-            "Red Mountain",
-            "Whitewater",
-        ]
-        self.current_index = 0
+        self.skiHills = list(RESORT_NAMES)
+        self.current_index = max(0, min(_read_selected_resort_index(), len(self.skiHills) - 1))
 
         try:
             self.bg_image = Image.open("images/select_resort.png").convert("RGB").resize((device.width, device.height))
@@ -2290,10 +2329,8 @@ class SelectResortScreen(Screen):
         index = self.current_index
         selected = self.skiHills[index]
         try:
-            with open("conf/skihill.conf", "w") as f:
-                f.write(str(index))
+            _write_selected_resort_index(index)
             print(f"[SelectResort] Selected: '{selected}' (index {index}) saved to skihill.conf")
-            # --- NEW: refresh the global hill and ScreenManager’s reference
             global hill
             reload_hill()
             self.screen_manager.hill = hill
@@ -2420,7 +2457,7 @@ class ConfigWiFiScreen(Screen):
         if self.ssid_list:
             draw.text((73, 140), self.ssid_list[self.current_index][:14], fill="white", font=font)
         draw.text((73, 175), "PASSWORD", fill="white", font=font)
-        draw.text((73, 207), f"{self.password}", fill="white", font=font)
+        draw.text((73, 207), f"{self.password[:14]}", fill="white", font=font)
 
         for btn in self.buttons:
             btn.draw(draw)
@@ -2567,8 +2604,8 @@ class AlarmScreen(Screen):
         font16 = _load_font(size=16)
 
         draw.text((68, 110), "Alarm Settings", fill="white", font=font18)
-        draw.text((68, 135), f"{self.hour}", fill="white", font=font32)
-        draw.text((120, 135), f"{self.minute}", fill="white", font=font32)
+        draw.text((68, 135), f"{int(self.hour):02d}", fill="white", font=font32)
+        draw.text((120, 135), f"{int(self.minute):02d}", fill="white", font=font32)
         draw.text((172, 145), "@", fill="white", font=font18)
         draw.text((188, 139), f"{self.triggered_snow}", fill="white", font=font16)
         draw.text((187, 154), "cm", fill="white", font=font16)
@@ -2902,3 +2939,4 @@ if __name__ == "__main__":
 
     # normal program startup continues here ...
     main()
+

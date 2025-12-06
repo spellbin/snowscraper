@@ -114,8 +114,9 @@ def draw_wifi_bars_badge(img,
                          rssi_dbm_val: Optional[float] = None,
                          pos: str = "top-right",
                          margin: int = 6,
-                         pad_x: int = 8,
-                         pad_y: int = 6,
+                         margin_y: Optional[int] = None,
+                         pad_x: int = 6,
+                         pad_y: int = 4,
                          bars: int = 4):
     """
     Draws a bars-only Wi-Fi badge (no percentage text).
@@ -143,10 +144,11 @@ def draw_wifi_bars_badge(img,
     off_color = (120,120,120)
 
     # Bar geometry
-    bar_w = 10
-    gap = 3
-    base_h = 6
-    max_h = base_h + (bars-1)*4
+    bar_w = 7
+    gap = 2
+    base_h = 5
+    step_h = 3
+    max_h = base_h + (bars-1)*step_h
     total_w = bars*bar_w + (bars-1)*gap
     total_h = max_h
 
@@ -157,6 +159,8 @@ def draw_wifi_bars_badge(img,
     draw = ImageDraw.Draw(img, "RGBA")
     W, H = img.size
     x0, y0 = _anchor_xy(W, H, bw, bh, pos, margin)
+    if margin_y is not None and pos.startswith("top"):
+        y0 = margin_y  # allow vertical offset without shifting x
     x1, y1 = x0 + bw, y0 + bh
 
     # Background
@@ -167,7 +171,7 @@ def draw_wifi_bars_badge(img,
     baseline_y = y1 - pad_y
 
     for i in range(bars):
-        h = base_h + i*4
+        h = base_h + i*step_h
         bx0 = origin_x + i*(bar_w + gap)
         by0 = baseline_y - h
         bx1 = bx0 + bar_w
