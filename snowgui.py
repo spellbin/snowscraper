@@ -10,17 +10,62 @@ import requests
 import re
 import sys, logging
 import shlex
+import textwrap
+import tempfile
 from logging.handlers import RotatingFileHandler
 from functools import lru_cache
 from pathlib import Path
+from typing import Optional
+try:
+    import yaml  # Optional; used for resorts_meta.yaml parsing
+except Exception:
+    yaml = None
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from packaging import version
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from luma.core.interface.serial import spi
 from luma.lcd.device import ili9341
-from debug_hud import draw_cpu_badge, draw_wifi_bars_badge
-from snowfall_overlay import SnowfallOverlay
+try:
+    from debug_hud import draw_cpu_badge, draw_wifi_bars_badge
+    _HAS_DEBUG_HUD = True
+except Exception as e:
+    _HAS_DEBUG_HUD = False
+
+    def draw_cpu_badge(*args, **kwargs):
+        return None
+
+    def draw_wifi_bars_badge(*args, **kwargs):
+        return None
+
+    print(f"[HUD] debug_hud unavailable ({e}); using no-op badges.")
+try:
+    from snowfall_overlay import SnowfallOverlay
+    _SNOWFALL_OVERLAY_AVAILABLE = True
+except Exception as e:
+    _SNOWFALL_OVERLAY_AVAILABLE = False
+
+    class SnowfallOverlay:
+        # No-op fallback if snowfall_overlay (or psutil inside it) is missing.
+        def __init__(self, *args, **kwargs):
+            self.error = e
+
+        def update_base(self, *args, **kwargs):
+            pass
+
+        def trigger(self, *args, **kwargs):
+            pass
+
+        def stop(self, *args, **kwargs):
+            pass
+
+        def on_enter(self, *args, **kwargs):
+            pass
+
+        def on_exit(self, *args, **kwargs):
+            pass
+
+    print(f"[Overlay] snowfall_overlay unavailable ({e}); using no-op overlay.")
 
 # ----------------------------
 # Constants & Config
@@ -37,10 +82,20 @@ VERBOSE = False # set True for extra console logging ie. each touch read
 GITHUB_TOKEN = None  # Optional GitHub token for private repos
 CALIBRATION_FILE = "/home/pi/snowscraper/conf/touch_calibration.json"
 HEARTBEAT_FILE = "/home/pi/snowscraper/heartbeat.txt"
+HEARTBEAT_RAM_FILE = "/run/heartbeat.txt"
 ALARM_CONF_FILE = "/home/pi/snowscraper/conf/alarm.conf"
 HEARTBEAT_INTERVAL = 10  # seconds
 DEV_MODE = False  # set True to avoid hitting live scrapers
 SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.json"
+# Journald drop-in to force volatile storage (RAM) and reduce disk writes
+JOURNALD_DROPIN_DIR = "/etc/systemd/journald.conf.d"
+JOURNALD_VOLATILE_CONF = os.path.join(JOURNALD_DROPIN_DIR, "volatile.conf")
+JOURNALD_VOLATILE_CONTENT = """[Journal]
+Storage=volatile
+RuntimeMaxUse=50M
+RuntimeKeepFree=10M
+RuntimeMaxFileSize=10M
+"""
 
 # Brightness profiles: shared by LCD dim overlay and LED scaling
 BRIGHTNESS_CONF_FILE = "/home/pi/snowscraper/conf/brightness.conf"
@@ -52,7 +107,7 @@ BRIGHTNESS_LEVELS = [
 # Shared resort metadata used across the UI.
 RESORT_NAMES = [
     "Sun Peaks",
-    "Silver Star",
+    "Silverstar",
     "Big White",
     "Whistler",
     "Revelstoke",
@@ -62,10 +117,24 @@ RESORT_NAMES = [
     "Red Mountain",
     "Whitewater",
     "Apex Mountain",
-    "Banff Norquay",
+    "Mount Norquay",
     "Fernie",
     "Powder King",
+    "Mount Washington",
+    "Mt. Timothy",
+    "Panorama",
+    "Purden",
+    "Troll Resort",
+    "Marmot Basin",
 ]
+
+RESORT_META_FILE = "conf/resorts_meta.yaml"
+
+AVY_POINT_URL = "https://api.avalanche.ca/forecasts/en/products/point"
+AVY_HEADERS = {
+    "User-Agent": "SnowGUI-Avy/0.1 (+https://www.snowscraper.ca)",
+    "Accept": "application/json",
+}
 
 
 # Alarm config cache (avoid disk IO every heartbeat iteration)
@@ -73,6 +142,30 @@ _alarm_cfg_cache = None
 _alarm_cfg_lock = threading.RLock()
 
 print(f"[BOOT] DEV_MODE = {DEV_MODE}")
+
+
+def _atomic_write_text(content: str, path: str) -> None:
+    """Write text atomically by replacing the target file in one move."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(prefix=f"{target.name}.", dir=target.parent)
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(content)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        os.replace(tmp_path, target)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
+def _atomic_write_json(payload, path: str, *, indent=None) -> None:
+    _atomic_write_text(json.dumps(payload, indent=indent), path)
 
 
 # ----------------------------
@@ -91,8 +184,7 @@ def _read_brightness_index(path=BRIGHTNESS_CONF_FILE, default=0) -> int:
 def _write_brightness_index(index: int, path=BRIGHTNESS_CONF_FILE) -> bool:
     try:
         index = max(0, min(index, len(BRIGHTNESS_LEVELS) - 1))
-        with open(path, "w") as f:
-            f.write(str(index))
+        _atomic_write_text(str(index), path)
         return True
     except Exception as e:
         print(f"[Brightness] Failed to write {path}: {e}")
@@ -139,6 +231,101 @@ def _is_systemd() -> bool:
         return os.path.isdir("/run/systemd/system")
     except Exception:
         return False
+
+def _is_root() -> bool:
+    try:
+        return hasattr(os, "geteuid") and os.geteuid() == 0
+    except Exception:
+        return False
+
+def _read_effective_journald_storage() -> Optional[str]:
+    """
+    Returns the effective Storage= mode for journald, or None if unknown.
+    Prefers systemd-analyze to read the merged config; falls back to dir heuristics.
+    """
+    # Preferred: merged config view
+    try:
+        res = subprocess.run(
+            ["systemd-analyze", "cat-config", "systemd/journald.conf"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        if res.stdout:
+            for line in res.stdout.splitlines():
+                m = re.match(r"^\s*Storage\s*=\s*(\w+)", line)
+                if m:
+                    return m.group(1).strip().lower()
+    except Exception as e:
+        print(f"[Journald] systemd-analyze probe failed: {e}")
+
+    # Heuristic: presence of volatile vs persistent log dirs
+    try:
+        if os.path.isdir("/run/log/journal") and not os.path.isdir("/var/log/journal"):
+            return "volatile"
+        if os.path.isdir("/var/log/journal"):
+            return "persistent"
+    except Exception:
+        pass
+    return None
+
+def _write_journald_volatile_dropin() -> bool:
+    """
+    Writes the drop-in that forces volatile journald storage.
+    Returns True on success.
+    """
+    try:
+        os.makedirs(JOURNALD_DROPIN_DIR, exist_ok=True)
+        # Write atomically to avoid partial configs
+        tmp_path = JOURNALD_VOLATILE_CONF + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(JOURNALD_VOLATILE_CONTENT)
+        os.replace(tmp_path, JOURNALD_VOLATILE_CONF)
+        return True
+    except Exception as e:
+        print(f"[Journald] Failed to write drop-in: {e}")
+        return False
+
+def ensure_journald_volatile():
+    """
+    Ensures journald writes only to RAM (Storage=volatile). Safe no-op if already set.
+    """
+    if not _is_systemd():
+        print("[Journald] Not running under systemd; skipping journald configuration check.")
+        return
+
+    current = _read_effective_journald_storage()
+    if current == "volatile":
+        print("[Journald] Storage already volatile; no action needed.")
+        return
+
+    if not _is_root():
+        print("[Journald] WARNING: need root to enforce volatile journald storage.")
+        return
+
+    if not _write_journald_volatile_dropin():
+        print("[Journald] ERROR: could not write volatile drop-in.")
+        return
+
+    try:
+        subprocess.run(
+            ["systemctl", "restart", "systemd-journald.service"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        print("[Journald] Requested systemd-journald restart to apply volatile storage.")
+    except Exception as e:
+        print(f"[Journald] WARNING: failed to restart journald: {e}")
+
+    # Re-check effective config to confirm
+    post = _read_effective_journald_storage()
+    if post != "volatile":
+        print(f"[Journald] WARNING: expected volatile storage, detected '{post}'.")
+    else:
+        print("[Journald] Volatile storage confirmed.")
 
 def _update_inline_git_checkout(version_str: str) -> bool:
     """
@@ -314,7 +501,14 @@ def _systemd_run_update(version_str: str) -> bool:
 # Log file lives next to this script: ./logs/snowgui.log
 _HERE = Path(__file__).resolve().parent
 _LOG_DIR = _HERE / "logs"
-_LOG_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+except Exception as e:
+    # If we cannot create the log directory, continue with console-only logging.
+    try:
+        sys.__stderr__.write(f"[Logging] Could not ensure log dir {_LOG_DIR}: {e}\n")
+    except Exception:
+        pass
 _LOG_PATH = _LOG_DIR / "snowgui.log"
 
 logger = logging.getLogger("snowgui")
@@ -322,10 +516,57 @@ logger.setLevel(logging.INFO)
 
 _fmt = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
 
-# File handler (rotates at ~512 KB, keeps 3 backups)
-_fh = RotatingFileHandler(_LOG_PATH, maxBytes=512*1024, backupCount=3)
-_fh.setFormatter(_fmt)
-_fh.setLevel(logging.INFO)
+
+class _FailSafeRotatingFileHandler(RotatingFileHandler):
+    """
+    Rotating file handler that disables itself on the first OSError so logging
+    continues via the console handler.
+    """
+    def __init__(self, *args, logger_ref=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._logger_ref = logger_ref
+        self._failed = False
+
+    def emit(self, record):
+        if self._failed:
+            return
+        try:
+            super().emit(record)
+        except OSError as exc:
+            self._failed = True
+            try:
+                self.close()
+            except Exception:
+                pass
+            # Remove the handler so we fall back to console-only logging.
+            if self._logger_ref:
+                try:
+                    self._logger_ref.removeHandler(self)
+                except Exception:
+                    pass
+            try:
+                sys.__stderr__.write(
+                    f"[Logging] Disabling file logging ({exc}); console only from now on.\n"
+                )
+            except Exception:
+                pass
+
+# File handler (rotates at ~512 KB, keeps 3 backups); disabled if IO fails.
+_fh = None
+try:
+    _fh = _FailSafeRotatingFileHandler(
+        _LOG_PATH,
+        maxBytes=512 * 1024,
+        backupCount=3,
+        logger_ref=logger,
+    )
+    _fh.setFormatter(_fmt)
+    _fh.setLevel(logging.INFO)
+except Exception as e:
+    try:
+        sys.__stderr__.write(f"[Logging] File handler unavailable ({e}); using console only.\n")
+    except Exception:
+        pass
 
 # Console handler (so you still see output when running interactively)
 _sh = logging.StreamHandler(sys.__stdout__)
@@ -334,8 +575,9 @@ _sh.setLevel(logging.INFO)
 
 # Avoid duplicate handlers if the module is reloaded
 if not logger.handlers:
-    logger.addHandler(_fh)
     logger.addHandler(_sh)
+    if _fh:
+        logger.addHandler(_fh)
 
 # Pipe Python warnings (e.g., RuntimeWarning from GPIO/luma) into logging
 logging.captureWarnings(True)
@@ -856,8 +1098,7 @@ def save_alarm_cfg(cfg):
     global _alarm_cfg_cache
     with _alarm_cfg_lock:
         try:
-            with open(ALARM_CONF_FILE, "w") as f:
-                json.dump(cfg, f)
+            _atomic_write_json(cfg, ALARM_CONF_FILE)
             _alarm_cfg_cache = cfg
             print("[Alarm] alarm.conf saved.")
         except Exception as e:
@@ -1051,6 +1292,49 @@ def get_local_version():
         return None
 
 
+def _draw_version_badge(img, version_text: str):
+    """
+    Paint the VERSION file contents onto the provided image (bottom-right corner).
+    Operates in-place and returns the same image for chaining.
+    """
+    if not img or not version_text:
+        return img
+
+    try:
+        draw = ImageDraw.Draw(img)
+        font = _load_font(size=16)
+        text = version_text.strip()
+        pad = 8
+
+        # Pillow 10 removed textsize; textbbox works across modern versions
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+        # Position badge bottom-right
+        margin = 6
+        radius = 6
+        box_w = w + margin * 2
+        box_h = h + margin * 2
+        box_x = img.width - box_w - pad
+        box_y = img.height - box_h - pad
+        box = (box_x, box_y, box_x + box_w, box_y + box_h)
+
+        try:
+            draw.rounded_rectangle(box, radius=radius, fill="white")
+        except Exception:
+            draw.rectangle(box, fill="white")
+
+        # Center text inside the badge
+        text_x = box_x + (box_w - w) // 2
+        text_y = box_y + (box_h - h) // 2
+        text_y = text_y - 5
+        draw.text((text_x, text_y), text, fill="black", font=font)
+    except Exception as e:
+        print(f"[Splash] Failed to render version badge: {e}")
+
+    return img
+
+
 def get_remote_version():
     repo_path = REPO_URL.replace("https://github.com/", "").replace(".git", "")
     api_url = f"https://api.github.com/repos/{repo_path}/releases/latest"
@@ -1106,10 +1390,48 @@ def update(version_str: str) -> bool:
     return _update_inline_git_checkout(version_str)
 
 
+def _ensure_heartbeat_symlink() -> bool:
+    """
+    Make sure the disk-based heartbeat path points at the RAM-backed file.
+    Falls back quietly on errors; callers may still write the disk file directly.
+    """
+    try:
+        # Remove incorrect targets so we can recreate the symlink.
+        if os.path.islink(HEARTBEAT_FILE):
+            target = os.readlink(HEARTBEAT_FILE)
+            if target == HEARTBEAT_RAM_FILE:
+                return True
+            os.unlink(HEARTBEAT_FILE)
+        elif os.path.exists(HEARTBEAT_FILE):
+            os.remove(HEARTBEAT_FILE)
+
+        os.symlink(HEARTBEAT_RAM_FILE, HEARTBEAT_FILE)
+        return True
+    except Exception as e:
+        print(f"[Heartbeat] Symlink setup failed: {e}")
+        return False
+
+
 def heartbeat():
     while True:
-        with open(HEARTBEAT_FILE, "w") as f:
-            f.write(str(time.time()))
+        ts = str(time.time())
+
+        # Primary write goes to RAM to spare the disk.
+        try:
+            with open(HEARTBEAT_RAM_FILE, "w") as f:
+                f.write(ts)
+        except Exception as e:
+            print(f"[Heartbeat] Write to RAM file failed: {e}")
+
+        # Ensure watchdog path continues to work.
+        linked = _ensure_heartbeat_symlink()
+        if not linked:
+            try:
+                with open(HEARTBEAT_FILE, "w") as f:
+                    f.write(ts)
+            except Exception as e:
+                print(f"[Heartbeat] Fallback write failed: {e}")
+
         time.sleep(HEARTBEAT_INTERVAL)
 
 
@@ -1140,7 +1462,60 @@ def init_display():
         return device
     
 display_lock = threading.RLock()
-overlay = SnowfallOverlay(get_size=lambda: (device.width, device.height))
+
+class _SafeOverlay:
+    """
+    Wraps the snowfall overlay so GUI keeps running if the overlay crashes.
+    Lazily constructs the real overlay on first use to avoid startup breakage.
+    """
+    def __init__(self, factory):
+        self._factory = factory
+        self._overlay = None
+        self._failed = False
+        self._last_error = None
+
+    def _fail(self, exc):
+        self._failed = True
+        self._last_error = exc
+        print(f"[Overlay] Disabled after error: {exc}")
+
+    def _ensure_overlay(self):
+        if self._failed or self._overlay is not None:
+            return
+        try:
+            self._overlay = self._factory()
+        except Exception as e:
+            self._fail(e)
+
+    def _call(self, method, *args, **kwargs):
+        if self._failed:
+            return
+        self._ensure_overlay()
+        if not self._overlay:
+            return
+        try:
+            fn = getattr(self._overlay, method, None)
+            if fn:
+                return fn(*args, **kwargs)
+        except Exception as e:
+            self._fail(e)
+
+    def update_base(self, *args, **kwargs):
+        return self._call("update_base", *args, **kwargs)
+
+    def trigger(self, *args, **kwargs):
+        return self._call("trigger", *args, **kwargs)
+
+    def stop(self, *args, **kwargs):
+        return self._call("stop", *args, **kwargs)
+
+    def on_enter(self, *args, **kwargs):
+        return self._call("on_enter", *args, **kwargs)
+
+    def on_exit(self, *args, **kwargs):
+        return self._call("on_exit", *args, **kwargs)
+
+overlay = _SafeOverlay(lambda: SnowfallOverlay(get_size=lambda: (device.width, device.height)))
 
 def _apply_dim_overlay(img, scale: float):
     """
@@ -1163,6 +1538,7 @@ def _apply_dim_overlay(img, scale: float):
         return Image.blend(img, overlay_img, alpha)
 
 def present(img):
+    global device
     with display_lock:
         if img.mode != "RGB":
             img = img.convert("RGB")
@@ -1171,7 +1547,15 @@ def present(img):
         except Exception:
             dim_scale = 1.0
         img = _apply_dim_overlay(img, dim_scale)
-        device.display(img)
+        try:
+            device.display(img)
+        except Exception:
+            logger.exception("Display update failed; falling back to dummy device.")
+            try:
+                device = _DummyDevice()
+                device.display(img)
+            except Exception:
+                pass
 
 
 def _read_selected_resort_index(path="conf/skihill.conf") -> int:
@@ -1188,8 +1572,7 @@ def _write_selected_resort_index(index: int, path="conf/skihill.conf") -> bool:
     """Clamp and persist the selected resort index."""
     try:
         index = max(0, min(index, len(RESORT_NAMES) - 1))
-        with open(path, "w") as f:
-            f.write(str(index))
+        _atomic_write_text(str(index), path)
         return True
     except Exception as e:
         print(f"[SelectResort] Failed to write {path}: {e}")
@@ -1234,6 +1617,302 @@ def _load_resort_json(name: str) -> dict:
             print(f"[{name}] Failed to read local JSON: {e_file}")
 
     return data if isinstance(data, dict) else {}
+
+def _coerce_float(val, default=None):
+    try:
+        return float(val)
+    except Exception:
+        return default if default is not None else val
+
+
+def _parse_simple_yaml(text: str) -> dict:
+    """
+    Minimal YAML-ish parser for simple key: value maps used by resorts_meta.yaml.
+    Falls back to strings/floats; ignores indentation errors.
+    """
+    data = {}
+    current = None
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith(" "):
+            key = line.split(":", 1)[0].strip()
+            if key:
+                current = data.setdefault(key, {})
+            continue
+        if current is None or ":" not in line:
+            continue
+        sub_key, sub_val = line.strip().split(":", 1)
+        sub_key = sub_key.strip()
+        sub_val = sub_val.strip().strip('"').strip("'")
+        if not sub_key:
+            continue
+        current[sub_key] = _coerce_float(sub_val, sub_val)
+    return data
+
+
+@lru_cache(maxsize=1)
+def _load_resort_meta(path=RESORT_META_FILE) -> dict:
+    """
+    Load resort -> lat/lon map from YAML (or JSON).
+    Safe to call repeatedly; cache keeps disk IO low.
+    """
+    if not os.path.exists(path):
+        print(f"[Avy] resorts_meta.yaml not found at {path}")
+        return {}
+    try:
+        if yaml:
+            with open(path, "r") as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            with open(path, "r") as f:
+                raw = f.read()
+            try:
+                data = json.loads(raw)
+            except Exception:
+                data = _parse_simple_yaml(raw)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"[Avy] Failed to load {path}: {e}")
+        return {}
+
+
+def _get_resort_point(name: str):
+    meta = _load_resort_meta().get(name) or {}
+    lat = meta.get("lat") or meta.get("latitude") or meta.get("y")
+    lon = meta.get("lon") or meta.get("long") or meta.get("lng") or meta.get("longitude") or meta.get("x")
+    if lat is None or lon is None:
+        return None
+    try:
+        return float(lat), float(lon)
+    except Exception:
+        return None
+
+
+def _extract_danger(payload: dict) -> dict:
+    """
+    Prefer the /report/dangerRatings structure from avytest.py; fall back to older shapes.
+    """
+    danger = {"alpine": "N/A", "treeline": "N/A", "below_treeline": "N/A"}
+
+    # Newer AvCan structure: report.dangerRatings is a list of days.
+    report = (payload or {}).get("report") or {}
+    dr_list = report.get("dangerRatings")
+    if isinstance(dr_list, list) and dr_list:
+        today = dr_list[0] if isinstance(dr_list[0], dict) else {}
+        ratings = today.get("ratings") or {}
+
+        def nice(zone_key):
+            zone = ratings.get(zone_key) or {}
+            rating = zone.get("rating") or {}
+            return rating.get("display") or rating.get("value")
+
+        a = nice("alp")
+        t = nice("tln")
+        b = nice("btl")
+        if a:
+            danger["alpine"] = a
+        if t:
+            danger["treeline"] = t
+        if b:
+            danger["below_treeline"] = b
+        return danger
+
+    # Legacy shapes (dict / list of dicts)
+    dr = payload.get("dangerRatings") or payload.get("danger") or payload.get("ratings")
+    if isinstance(dr, dict):
+        def pick(v):
+            if isinstance(v, dict):
+                return v.get("rating") or v.get("value") or v.get("label") or str(v)
+            return v
+
+        a = dr.get("alpine") or dr.get("Alpine")
+        t = dr.get("treeline") or dr.get("Treeline")
+        b = dr.get("below_treeline") or dr.get("belowTreeline") or dr.get("Below Treeline")
+
+        if a:
+            danger["alpine"] = str(pick(a))
+        if t:
+            danger["treeline"] = str(pick(t))
+        if b:
+            danger["below_treeline"] = str(pick(b))
+
+    elif isinstance(dr, list):
+        for entry in dr:
+            if not isinstance(entry, dict):
+                continue
+            elev = (entry.get("elevation") or "").lower()
+            rating = entry.get("rating") or entry.get("value") or entry.get("label") or ""
+            if not rating:
+                continue
+            if "alpine" in elev:
+                danger["alpine"] = rating
+            elif "tree" in elev:
+                danger["treeline"] = rating
+            elif "below" in elev:
+                danger["below_treeline"] = rating
+    return danger
+
+
+def _extract_summary(payload: dict) -> str:
+    # Prefer report.highlights (HTML-ish), but fall back to older keys.
+    report = (payload or {}).get("report") or {}
+    highlights = report.get("highlights")
+    if isinstance(highlights, str) and highlights.strip():
+        try:
+            return re.sub(r"<[^>]+>", " ", highlights).strip()
+        except Exception:
+            return highlights.strip()
+
+    for key in ("summary", "bottomLine", "highlights", "conditionsSummary", "shortText", "outlook"):
+        val = payload.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+        forecast = payload.get("forecast")
+        if isinstance(forecast, dict):
+            inner = forecast.get(key)
+            if isinstance(inner, str) and inner.strip():
+                return inner.strip()
+    return ""
+
+
+def _extract_issue(payload: dict) -> str:
+    report = (payload or {}).get("report") or {}
+    for container in (report, payload):
+        for key in ("dateIssued", "publishedAt", "issueDate", "createdAt", "validUntil"):
+            val = container.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    return ""
+
+
+def _parse_iso_dt(dt_str):
+    if not dt_str:
+        return None
+    s = str(dt_str).strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        return datetime.datetime.fromisoformat(s)
+    except Exception:
+        return None
+
+
+# --- Avy mask assets (colored overlays for alpine/treeline/below TL) ---
+_AVY_ASSETS = None
+
+
+def _load_avy_mask_assets():
+    """
+    Load background + soft alpha masks once (cached).
+    Masks are blurred slightly to avoid jagged edges.
+    """
+    global _AVY_ASSETS
+    if _AVY_ASSETS:
+        return _AVY_ASSETS
+
+    base_dir = Path(__file__).resolve().parent / "images"
+    def _open_rgba(path, fallback_color=(12, 16, 26, 255)):
+        try:
+            img = Image.open(path).convert("RGBA").resize((device.width, device.height))
+            return img
+        except FileNotFoundError:
+            print(f"[AvyMask] Missing {path}, using solid fallback.")
+            return Image.new("RGBA", (device.width, device.height), fallback_color)
+        except Exception as e:
+            print(f"[AvyMask] Failed to load {path}: {e}")
+            return Image.new("RGBA", (device.width, device.height), fallback_color)
+
+    bg_path = base_dir / "aconditions.png"
+    background = _open_rgba(bg_path)
+
+    mask_files = ["topavymask.png", "midavymask.png", "botavymask.png"]
+    soft_alphas = []
+    for fname in mask_files:
+        path = base_dir / fname
+        try:
+            mask = Image.open(path).convert("L").resize((device.width, device.height))
+            # normalize border to black to avoid bleed
+            draw = ImageDraw.Draw(mask)
+            draw.rectangle((0, 0, mask.width - 1, mask.height - 1), outline=0, width=2)
+            alpha = mask.point(lambda p: 0 if p > 250 else 255, "L")
+            alpha = alpha.filter(ImageFilter.GaussianBlur(radius=1))
+            soft_alphas.append(alpha)
+        except FileNotFoundError:
+            print(f"[AvyMask] Missing {fname}; mask will be empty.")
+            soft_alphas.append(Image.new("L", (device.width, device.height), 0))
+        except Exception as e:
+            print(f"[AvyMask] Failed to load {fname}: {e}")
+            soft_alphas.append(Image.new("L", (device.width, device.height), 0))
+
+    _AVY_ASSETS = {"background": background, "masks": soft_alphas}
+    return _AVY_ASSETS
+
+
+def _avy_color_for_rating(val: str):
+    """
+    Map danger rating string to RGBA fill.
+    Red = High/Considerable/Extreme, Yellow = Moderate, Green = Low.
+    """
+    r = (val or "").lower()
+    if not r or r == "n/a":
+        return (120, 130, 150, 120)
+    if "low" in r or r.startswith("1"):
+        return (3, 109, 9, 180)
+    if "moderate" in r or "mod" in r or r.startswith("2"):
+        return (240, 178, 0, 190)
+    return (209, 9, 6, 190)
+
+
+def _fetch_point_forecast(lat: float, lon: float) -> dict:
+    """
+    Behaves like avytest.py's render_summary pipeline:
+    - Call point endpoint
+    - Normalize list/dict response
+    - Prefer report.* fields for title/highlights/danger ratings
+    """
+    params = {"lat": f"{lat:.6f}", "long": f"{lon:.6f}"}
+    try:
+        resp = requests.get(AVY_POINT_URL, params=params, headers=AVY_HEADERS, timeout=12)
+    except Exception as e:
+        raise RuntimeError(f"Forecast fetch failed: {e}")
+
+    if resp.status_code != 200:
+        raise RuntimeError(f"avalanche.ca returned HTTP {resp.status_code}: {resp.text[:200]}")
+
+    try:
+        payload = resp.json() if resp.content else {}
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse avalanche.ca JSON: {e}")
+
+    # Normalize list/dict (API sometimes wraps in a list)
+    if isinstance(payload, list):
+        if not payload:
+            raise RuntimeError("No forecast returned for this point.")
+        product = payload[0]
+    elif isinstance(payload, dict):
+        product = payload
+    else:
+        raise RuntimeError("Unexpected response from avalanche.ca")
+
+    if not isinstance(product, dict):
+        raise RuntimeError("Unexpected forecast payload shape.")
+
+    report = product.get("report") or {}
+    area = product.get("area") or {}
+
+    issued_raw = report.get("dateIssued") or product.get("dateIssued") or _extract_issue(product)
+    issued_dt = _parse_iso_dt(issued_raw)
+    issued_fmt = issued_dt.strftime("%b %d %H:%M %Z") if issued_dt else issued_raw
+
+    return {
+        "title": report.get("title") or product.get("title") or product.get("name") or "Avalanche Forecast",
+        "region": area.get("name") or product.get("areaName") or product.get("region") or product.get("area"),
+        "danger": _extract_danger(product),
+        "summary": _extract_summary(product) or "No summary text available.",
+        "issued": issued_fmt or "",
+    }
 
 
 # ----------------------------
@@ -1291,8 +1970,7 @@ def log_snow_data(hill):
 
     # Save log
     try:
-        with open(SNOW_LOG_FILE, "w") as f:
-            json.dump(log_data, f, indent=2)
+        _atomic_write_json(log_data, SNOW_LOG_FILE, indent=2)
         print(f"[SnowLog] Logged data for {hill.name}")
     except Exception as e:
         print(f"[SnowLog] Error writing log: {e}")
@@ -1344,6 +2022,7 @@ def get_available_ssids():
             capture_output=True,
             text=True,
             check=True,
+            timeout=30,  # cap scan duration to avoid hanging
         )
         ssids = []
         seen = set()
@@ -1355,6 +2034,9 @@ def get_available_ssids():
                     ssids.append(ssid)
                     seen.add(ssid)
         return ssids
+    except subprocess.TimeoutExpired:
+        print("[WiFi] iwlist scan timed out after 30s")
+        return []
     except subprocess.CalledProcessError as e:
         print(f"Error running iwlist: {e}")
         return []
@@ -1459,6 +2141,148 @@ class TouchCalibrator:
             return False
         return True
 
+    # ---- Calibration helpers ----
+    def reset_defaults(self):
+        self.x_min, self.y_min, self.x_max, self.y_max = 0, 0, 4095, 4095
+
+    def load_safe(self):
+        if not os.path.exists(CALIBRATION_FILE):
+            print("[Calib] No calibration file found.")
+            self.reset_defaults()
+            return False
+        try:
+            with open(CALIBRATION_FILE, "r") as f:
+                data = json.load(f)
+            self.x_min = int(data.get("x_min", 0))
+            self.x_max = int(data.get("x_max", 4095))
+            self.y_min = int(data.get("y_min", 0))
+            self.y_max = int(data.get("y_max", 4095))
+            if self.x_max <= self.x_min or self.y_max <= self.y_min:
+                print("[Calib] Calibration file invalid; resetting to defaults.")
+                self.reset_defaults()
+                return False
+            return True
+        except Exception as e:
+            print(f"[Calib] Failed to read calibration file: {e}")
+            self.reset_defaults()
+            return False
+
+    def save_safe(self):
+        try:
+            os.makedirs(os.path.dirname(CALIBRATION_FILE), exist_ok=True)
+            with open(CALIBRATION_FILE, "w") as f:
+                json.dump(
+                    {
+                        "x_min": self.x_min,
+                        "x_max": self.x_max,
+                        "y_min": self.y_min,
+                        "y_max": self.y_max,
+                    },
+                    f,
+                    indent=2,
+                )
+            print(f"[Calib] Saved to {CALIBRATION_FILE}")
+            return True
+        except Exception as e:
+            print(f"[Calib] Failed to save calibration: {e}")
+            return False
+
+
+# ---- On-device calibration workflow ----
+def _draw_calibration_target(label: str, pos_xy):
+    """Render a simple crosshair target on screen."""
+    img = Image.new("RGB", (device.width, device.height), "black")
+    draw = ImageDraw.Draw(img)
+    cx, cy = pos_xy
+    size = 12
+    draw.line((cx - size, cy, cx + size, cy), fill="white", width=2)
+    draw.line((cx, cy - size, cx, cy + size), fill="white", width=2)
+    draw.ellipse((cx - 4, cy - 4, cx + 4, cy + 4), fill="cyan")
+    font = _load_font(size=12)
+    draw.text((10, 10), f"Tap the crosshair ({label})", fill="white", font=font)
+    present(img)
+
+
+def run_touch_calibration(calibrator: TouchCalibrator, touch: XPT2046, timeout_sec=8.0) -> bool:
+    """
+    Interactive 4-point calibration. Returns True on success.
+    Fails soft (defaults remain) on timeout or hardware errors.
+    """
+    if touch is None:
+        print("[Calib] Touch device not available; skipping calibration.")
+        return False
+
+    targets = [
+        ("top-left", (12, 12)),
+        ("top-right", (device.width - 12, 12)),
+        ("bottom-left", (12, device.height - 12)),
+        ("bottom-right", (device.width - 12, device.height - 12)),
+    ]
+
+    def _wait_for_release(release_timeout=2.0):
+        """Wait briefly for finger to lift to avoid reusing same touch."""
+        t0 = time.time()
+        while time.time() - t0 < release_timeout:
+            try:
+                if touch.read_touch(samples=3, tolerance=60) is None:
+                    return True
+            except Exception:
+                return True
+            time.sleep(0.05)
+        return False
+
+    def _dist2(a, b):
+        dx = a[0] - b[0]
+        dy = a[1] - b[1]
+        return dx * dx + dy * dy
+
+    samples = []
+    for label, pos in targets:
+        _draw_calibration_target(label, pos)
+        sample = None
+        t0 = time.time()
+        last_sample = samples[-1] if samples else None
+        while time.time() - t0 < timeout_sec:
+            try:
+                coord = touch.read_touch(samples=8, tolerance=80)
+            except Exception as e:
+                print(f"[Calib] Touch read error during {label}: {e}")
+                coord = None
+            if coord:
+                # If we still see the previous point (finger not lifted), wait
+                if last_sample and _dist2(coord, last_sample) < 1600:  # ~40 raw units
+                    time.sleep(0.05)
+                    continue
+                sample = coord
+                break
+            time.sleep(0.05)
+        if not sample:
+            print(f"[Calib] Timed out waiting for tap at {label}.")
+            show_popup_message("Calibration failed", duration=1.5)
+            return False
+        samples.append(sample)
+        _wait_for_release()
+
+    xs = [p[0] for p in samples]
+    ys = [p[1] for p in samples]
+    try:
+        calibrator.x_min = max(0, min(xs))
+        calibrator.x_max = max(xs)
+        calibrator.y_min = max(0, min(ys))
+        calibrator.y_max = max(ys)
+        # sanity: ensure spans are reasonable
+        if calibrator.x_max - calibrator.x_min < 200 or calibrator.y_max - calibrator.y_min < 200:
+            print("[Calib] Computed span too small; keeping defaults.")
+            calibrator.reset_defaults()
+            return False
+        calibrator.save_safe()
+        show_popup_message("Calibration saved", duration=1.5)
+        return True
+    except Exception as e:
+        print(f"[Calib] Failed to finalize calibration: {e}")
+        calibrator.reset_defaults()
+        return False
+
 
 # ----------------------------
 # UI Widgets
@@ -1529,7 +2353,15 @@ class Screen:
     def handle_touch(self, x, y):
         for btn in self.buttons:
             if btn.contains(x, y):
-                btn.on_press()
+                try:
+                    btn.on_press()
+                except Exception:
+                    logger.exception(
+                        "Button callback failed (%s) at (%s,%s)",
+                        getattr(btn, "label", "?"),
+                        x,
+                        y,
+                    )
 
 
 class KeyboardScreen(Screen):
@@ -1635,7 +2467,7 @@ class MainMenuScreen(Screen):
         # top-left dim toggle (invisible hitbox over background art)
         self.add_button(Button(5, 5, 55, 45, "Dim", self._toggle_brightness, visible=False))
         self.add_button(Button(60, 100, 260, 130, "Mountain Report", lambda: screen_manager.set_screen(SnowReportScreen(screen_manager, screen_manager.hill))))
-        self.add_button(Button(60, 140, 260, 165, "Avy Conditions", lambda: screen_manager.set_screen(ImageScreen("images/aconditions.png", screen_manager, screen_manager.hill))))
+        self.add_button(Button(60, 140, 260, 165, "Avy Conditions", lambda: screen_manager.set_screen(AvyMaskScreen(screen_manager, screen_manager.hill))))
         self.add_button(Button(60, 206, 260, 237, "Config", lambda: screen_manager.set_screen(ImageScreen("images/config.png", screen_manager, screen_manager.hill))))
         self.add_button(Button(60, 175, 260, 200, "Powder Drive", lambda: screen_manager.set_screen(PowderDriveSplashScreen(screen_manager))))
         self.add_button(Button(275, 198, 318, 238, "Update", lambda: screen_manager.set_screen(UpdateScreen(screen_manager, screen_manager.hill)), visible=False))
@@ -2055,6 +2887,360 @@ class ChartScreen(Screen):
             fill=self.text_color,
             font=self.font,
         )
+
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+        present(img)
+
+# ---------------------------------------------------------------------
+# Avalanche Forecast (avalanche.ca point API)
+# ---------------------------------------------------------------------
+class AvyForecastScreen(Screen):
+    """
+    Minimal text-first avalanche forecast view for 320x240.
+    Pulls a point forecast from avalanche.ca using the resort's lat/lon.
+    """
+    def __init__(self, screen_manager, hill):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.hill = hill
+        self.resort_name = getattr(hill, "name", RESORT_NAMES[0] if RESORT_NAMES else "Resort")
+        self.point = _get_resort_point(self.resort_name)
+        self.forecast = None
+        self.error = None
+        self.loading = True
+        self.summary_lines = []
+        self.scroll_index = 0
+        self.header_y = 38
+        self.summary_y = self.header_y + 46
+        self.summary_line_height = 14
+
+        # Navigation buttons (all visible hitboxes)
+        self.add_button(Button(
+            240, 205, 318, 236,
+            "Back",
+            lambda: screen_manager.set_screen(AvyMaskScreen(screen_manager, screen_manager.hill)),
+            visible=True
+        ))
+        self.add_button(Button(12, 2, 117, 30, "PrevResort", lambda: self._cycle_resort(-1), visible=True))
+        self.add_button(Button(215, 2, 318, 30, "NextResort", lambda: self._cycle_resort(1), visible=True))
+        # Summary scroll controls (visible only when needed)
+        self.add_button(Button(280, 36, 318, 60, "Up", lambda: self._scroll_summary(-2), visible=False))
+        self.add_button(Button(280, 66, 318, 90, "Dn", lambda: self._scroll_summary(2), visible=False))
+
+        threading.Thread(target=self._load_forecast, daemon=True).start()
+
+    # ---------- Data ----------
+    def _cycle_resort(self, direction: int):
+        total = len(RESORT_NAMES)
+        if total == 0:
+            return
+        current_index = _read_selected_resort_index()
+        next_index = (current_index + direction) % total
+        if not _write_selected_resort_index(next_index):
+            return
+
+        new_hill = reload_hill()
+        self.screen_manager.hill = new_hill
+        self.screen_manager.set_screen(AvyForecastScreen(self.screen_manager, new_hill))
+
+    def _load_forecast(self):
+        if not self.point:
+            self.error = f"No lat/lon for '{self.resort_name}'. Update {RESORT_META_FILE}."
+            self.loading = False
+            self.screen_manager.redraw()
+            return
+        lat, lon = self.point
+        try:
+            self.forecast = _fetch_point_forecast(lat, lon)
+            self._set_summary_lines()
+        except Exception as e:
+            self.error = str(e)
+            self.summary_lines = []
+            self.scroll_index = 0
+            self._update_scroll_buttons()
+        finally:
+            self.loading = False
+            self.screen_manager.redraw()
+
+    # ---------- Helpers ----------
+    def _wrap(self, text, width_chars=36):
+        return textwrap.wrap(text or "", width=width_chars)
+
+    def _set_summary_lines(self):
+        text = (self.forecast or {}).get("summary", "")
+        self.summary_lines = self._wrap(text, 38)
+        self.scroll_index = 0
+        self._update_scroll_buttons()
+
+    def _max_visible_lines(self):
+        available = max(0, 225 - self.summary_y)
+        # Hard cap to avoid overlapping the Back button
+        return max(1, min(7, available // self.summary_line_height))
+
+    def _update_scroll_buttons(self):
+        max_lines = self._max_visible_lines()
+        overflow = len(self.summary_lines) > max_lines
+        # Buttons: back, prev, next, up, down
+        up_btn = self.buttons[3]
+        down_btn = self.buttons[4]
+        up_btn.visible = overflow
+        down_btn.visible = overflow
+        if not overflow:
+            self.scroll_index = 0
+        else:
+            max_idx = max(0, len(self.summary_lines) - max_lines)
+            self.scroll_index = min(self.scroll_index, max_idx)
+
+    def _scroll_summary(self, delta: int):
+        if not self.summary_lines:
+            return
+        max_lines = self._max_visible_lines()
+        max_idx = max(0, len(self.summary_lines) - max_lines)
+        self.scroll_index = max(0, min(self.scroll_index + delta, max_idx))
+        self._update_scroll_buttons()
+        self.screen_manager.redraw()
+
+    def _rating_color(self, rating: str):
+        r = (rating or "").lower()
+        if not r or r == "n/a":
+            return (160, 170, 185)
+        if "low" in r:
+            return (80, 200, 120)
+        if "moderate" in r:
+            return (255, 215, 0)
+        if "considerable" in r:
+            return (255, 140, 0)
+        if "high" in r:
+            return (255, 69, 58)
+        if "extreme" in r:
+            return (255, 0, 0)
+        return (200, 220, 235)
+
+    def _text_size(self, draw, text, font):
+        try:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            return bbox[2] - bbox[0], bbox[3] - bbox[1]
+        except Exception:
+            return draw.textsize(text, font=font)
+
+    def _format_issue(self, issued: str, region: str = ""):
+        if not issued:
+            return "Updated: unknown"
+        try:
+            ts = issued.replace("Z", "+00:00")
+            dt = datetime.datetime.fromisoformat(ts)
+            stamp = dt.strftime("%b %d %H:%M")
+        except Exception:
+            stamp = issued
+        region_txt = f" • {region}" if region else ""
+        return f"Updated {stamp}{region_txt}"
+
+    # ---------- Draw ----------
+    def draw(self, draw_obj):
+        img = Image.new("RGB", (device.width, device.height), (12, 16, 26))
+        draw = ImageDraw.Draw(img)
+        title_font = _load_font(size=16)
+        body_font = _load_font(size=12)
+        small_font = _load_font(size=11)
+
+        # Header
+        header_y = self.header_y
+        draw.text((12, header_y), "Avalanche Forecast", fill=(235, 245, 255), font=title_font)
+        if self.point:
+            lat, lon = self.point
+            draw.text((12, header_y + 22), f"{self.resort_name} {lat:.3f}, {lon:.3f}", fill=(190, 220, 255), font=body_font)
+        else:
+            draw.text((12, header_y + 22), self.resort_name, fill=(190, 220, 255), font=body_font)
+
+        # Visible navigation buttons
+        back_btn, prev_btn, next_btn, up_btn, down_btn = self.buttons
+        btn_outline = (70, 90, 110)
+        btn_fill = (24, 30, 40)
+        label_fill = (220, 230, 240)
+        for btn, label in ((prev_btn, "Prev Resort"), (next_btn, "Next Resort")):
+            draw.rectangle((btn.x1, btn.y1, btn.x2, btn.y2), outline=btn_outline, fill=btn_fill)
+            btw, bth = self._text_size(draw, label, body_font)
+            draw.text(
+                (btn.x1 + (btn.x2 - btn.x1 - btw) // 2, (btn.y1 + (btn.y2 - btn.y1 - bth) // 2) - 3),
+                label, fill=label_fill, font=body_font
+            )
+        for btn, label in ((up_btn, "Up"), (down_btn, "Dwn")):
+            if not btn.visible:
+                continue
+            draw.rectangle((btn.x1, btn.y1, btn.x2, btn.y2), outline=btn_outline, fill=btn_fill)
+            btw, bth = self._text_size(draw, label, body_font)
+            draw.text(
+                (btn.x1 + (btn.x2 - btn.x1 - btw) // 2, (btn.y1 + (btn.y2 - btn.y1 - bth) // 2) - 3),
+                label, fill=label_fill, font=body_font
+            )
+
+        y = self.summary_y
+        if self.loading:
+            draw.text((12, y), "Loading forecast...", fill=(220, 220, 220), font=body_font)
+        elif self.error:
+            for line in self._wrap(self.error, 32):
+                draw.text((12, y), line, fill=(255, 120, 120), font=body_font)
+                y += 16
+        elif self.forecast:
+            y += 6
+            draw.text((12, y), "Summary", fill=(205, 230, 255), font=body_font)
+            y += 16
+            max_lines = self._max_visible_lines()
+            visible_lines = self.summary_lines[self.scroll_index:self.scroll_index + max_lines]
+            for line in visible_lines:
+                draw.text((12, y), line, fill=(210, 210, 210), font=small_font)
+                y += self.summary_line_height
+
+            issue_label = self._format_issue(
+                self.forecast.get("issued", ""), self.forecast.get("region", "")
+            )
+            issue_label_short = issue_label[:25]
+            draw.text((12, 225), issue_label_short, fill=(160, 180, 200), font=small_font)
+        else:
+            draw.text((12, y), "No forecast data.", fill=(220, 220, 220), font=body_font)
+
+        # Back button affordance
+        bx1, by1, bx2, by2 = back_btn.x1, back_btn.y1, back_btn.x2, back_btn.y2
+        draw.rectangle((bx1, by1, bx2, by2), outline=btn_outline, fill=btn_fill)
+        btw, bth = self._text_size(draw, "Back", body_font)
+        draw.text(
+            (bx1 + (bx2 - bx1 - btw) // 2, (by1 + (by2 - by1 - bth) // 2) - 3),
+            "Back", fill=label_fill, font=body_font
+        )
+
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+        present(img)
+
+# ---------------------------------------------------------------------
+# Avalanche Forecast (mask overlay view)
+# ---------------------------------------------------------------------
+class AvyMaskScreen(Screen):
+    """
+    Colorizes three elevation bands using the mask assets:
+      - Top mask  -> Alpine
+      - Mid mask  -> Treeline
+      - Bottom    -> Below Treeline
+    A "Details" button (top-left) opens the text AvyForecastScreen.
+    """
+    def __init__(self, screen_manager, hill):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.hill = hill
+        self.resort_name = getattr(hill, "name", RESORT_NAMES[0] if RESORT_NAMES else "Resort")
+        self.point = _get_resort_point(self.resort_name)
+        self.forecast = None
+        self.error = None
+        self.loading = True
+        self.assets = _load_avy_mask_assets()
+
+        # Buttons: details (visible), prev/next resort (hidden), back (visible)
+        self.add_button(Button(6, 7, 47, 49, "Details", lambda: screen_manager.set_screen(AvyForecastScreen(screen_manager, screen_manager.hill)), visible=False))
+        self.add_button(Button(280, 6, 312, 37, "PrevResort", lambda: self._cycle_resort(-1), visible=False))
+        self.add_button(Button(280, 50, 312, 81, "NextResort", lambda: self._cycle_resort(1), visible=False))
+        self.add_button(Button(270, 194, 313, 231, "Back", lambda: screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill)), visible=False))
+
+        threading.Thread(target=self._load_forecast, daemon=True).start()
+
+    # ---------- Data ----------
+    def _cycle_resort(self, direction: int):
+        total = len(RESORT_NAMES)
+        if total == 0:
+            return
+        current_index = _read_selected_resort_index()
+        next_index = (current_index + direction) % total
+        if not _write_selected_resort_index(next_index):
+            return
+
+        new_hill = reload_hill()
+        self.screen_manager.hill = new_hill
+        self.screen_manager.set_screen(AvyMaskScreen(self.screen_manager, new_hill))
+
+    def _load_forecast(self):
+        if not self.point:
+            self.error = f"No lat/lon for '{self.resort_name}'. Update {RESORT_META_FILE}."
+            self.loading = False
+            self.screen_manager.redraw()
+            return
+        lat, lon = self.point
+        try:
+            self.forecast = _fetch_point_forecast(lat, lon)
+        except Exception as e:
+            self.error = str(e)
+        finally:
+            self.loading = False
+            self.screen_manager.redraw()
+
+    # ---------- Helpers ----------
+    def _text_size(self, draw, text, font):
+        try:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            return bbox[2] - bbox[0], bbox[3] - bbox[1]
+        except Exception:
+            return draw.textsize(text, font=font)
+
+    def _danger_tuple(self):
+        danger = (self.forecast or {}).get("danger") or {}
+        return (
+            str(danger.get("alpine", "N/A")),
+            str(danger.get("treeline", "N/A")),
+            str(danger.get("below_treeline", "N/A")),
+        )
+
+    # ---------- Draw ----------
+    def draw(self, draw_obj):
+        assets = self.assets or _load_avy_mask_assets()
+        base = assets.get("background") or Image.new("RGBA", (device.width, device.height), (12, 16, 26, 255))
+        masks = assets.get("masks") or []
+
+        ratings = self._danger_tuple()
+        display = base.copy()
+        for alpha, rating in zip(masks, ratings):
+            color = _avy_color_for_rating(rating)
+            color_layer = Image.new("RGBA", display.size, color)
+            empty = Image.new("RGBA", display.size, (0, 0, 0, 0))
+            colored_mask = Image.composite(color_layer, empty, alpha)
+            display = Image.alpha_composite(display, colored_mask)
+
+        img = display.convert("RGB")
+        draw = ImageDraw.Draw(img)
+        title_font = _load_font(size=18)
+        label_font = _load_font(size=12)
+
+        # Resort title centered top
+        tw, th = self._text_size(draw, self.resort_name, title_font)
+        draw.text(((device.width - tw) // 2, 8), self.resort_name, fill=(235, 245, 255), font=title_font)
+
+        # Details button (only if visible)
+        btn = self.buttons[0]
+        if btn.visible:
+            draw.rectangle((btn.x1, btn.y1, btn.x2, btn.y2), outline=(90, 110, 130), fill=(24, 32, 42))
+            btw, bth = self._text_size(draw, "Details", label_font)
+            draw.text((btn.x1 + (btn.x2 - btn.x1 - btw) // 2, btn.y1 + (btn.y2 - btn.y1 - bth) // 2), "Details", fill=(220, 230, 240), font=label_font)
+
+        # Back button (bottom-right; only if visible)
+        back_btn = self.buttons[3]
+        if back_btn.visible:
+            draw.rectangle((back_btn.x1, back_btn.y1, back_btn.x2, back_btn.y2), outline=(70, 90, 110), fill=(24, 32, 42))
+            bbtw, bbth = self._text_size(draw, "Back", label_font)
+            draw.text((back_btn.x1 + (back_btn.x2 - back_btn.x1 - bbtw) // 2, back_btn.y1 + (back_btn.y2 - back_btn.y1 - bbth) // 2), "Back", fill=(220, 230, 240), font=label_font)
+
+        # Status / ratings
+        status_y = 30
+        draw.text((60, 160), "Alpine", fill=(225, 225, 225), font=label_font)
+        draw.text((60, 177), "Treeline", fill=(225, 225, 225), font=label_font)
+        draw.text((60, 194), "Below Treeline", fill=(225, 225, 225), font=label_font)
+        if self.loading:
+            draw.text((90, status_y), "Loading forecast...", fill=(220, 220, 220), font=label_font)
+        elif self.error:
+            for idx, line in enumerate(textwrap.wrap(self.error, 38)):
+                draw.text((90, status_y + idx * 14), line, fill=(255, 120, 120), font=label_font)
+        else:
+            positions = [(195, 160), (195, 177), (195, 194)]
+            for pos, val in zip(positions, ratings):
+                txt = str(val)
+                draw.text(pos, txt[:7], fill=(225, 225, 225), font=label_font)
 
         if hasattr(self.screen_manager, "overlay"):
             self.screen_manager.overlay.update_base(img)
@@ -2799,6 +3985,11 @@ class ScreenManager:
 def main():
     global device, hill
 
+    try:
+        ensure_journald_volatile()
+    except Exception as e:
+        logger.warning("Failed to enforce volatile journald storage: %s", e)
+
     # Init display (guarded) & splash
     init_display()
 
@@ -2818,6 +4009,7 @@ def main():
     # Splash
     try:
         splash = Image.open("images/splashlogo.png").convert("RGB").resize((device.width, device.height))
+        splash = _draw_version_badge(splash, get_local_version())
         device.display(splash)
         leds_rainbow_splash(duration_sec=3.0)  # fades in over the 2s splash, then turns LEDs off
 
@@ -2825,11 +4017,23 @@ def main():
         print("⚠️ images/splashlogo.png not found; skipping splash.")
 
     try:
-        if os.path.exists(CALIBRATION_FILE):
-            calibrator.load()
-        else:
-            print("No calibration file found. Touchscreen Calibration required.")
-            exit(1)
+        calib_ok = False
+        try:
+            calib_ok = calibrator.load_safe()
+        except Exception as e:
+            print(f"[Calib] Unexpected error loading calibration: {e}")
+            calibrator.reset_defaults()
+
+        if not calib_ok:
+            print("[Calib] Starting on-device calibration.")
+            try:
+                calib_ok = run_touch_calibration(calibrator, touch)
+            except Exception as e:
+                print(f"[Calib] Interactive calibration failed: {e}")
+                calib_ok = False
+
+        if not calib_ok:
+            print("[Calib] Proceeding with default calibration; touch accuracy may be reduced.")
 
         # Build global hill instance
         reload_hill()  # sets the global 'hill'
@@ -2849,67 +4053,86 @@ def main():
         screen_manager.set_screen(MainMenuScreen(screen_manager, screen_manager.hill))
 
         while True:
-            if touch:
-                coord = touch.read_touch()
-                if coord:
-                    mapped = calibrator.map_raw_to_screen(*coord)
-                    if VERBOSE:
-                        print(f"Touch @ {mapped}")
-                    screen_manager.handle_touch(*mapped)
-
-            now_ts = time.time()
-            if now_ts - last_fetch > FETCH_PERIOD:
-                try:
-                    if not DEV_MODE:
-                        hill.getSnow()
-                    last_fetch = now_ts
-                    print(f"[Snow] {hill.name}: 24h new = {hill.newSnow}")
-                except Exception as e:
-                    print(f"[Snow] Fetch failed: {e}")
-
-                # Refresh the screen so SnowReportScreen shows the latest values
-                try:
-                    screen_manager.redraw()
-                except Exception:
-                    pass
-
-                try:
-                    sn = hill.newSnow
-                    if isinstance(sn, str):
-                        sn = _safe_int(sn)
-                    current_snow_cm = int(sn)
-
-                    prev = getattr(main, "_prev_snow_cm", None)
-
-                    # First run: initialize LEDs once
-                    if prev is None:
-                        main._prev_snow_cm = current_snow_cm
-                        leds_set_snow(current_snow_cm, current_snow_cm)
-
-                    # Subsequent runs: only react when value changes
-                    elif current_snow_cm != prev:
-                        print(f"[Snow] Change detected: {prev} -> {current_snow_cm}")
-
-                        # Snowfall overlay trigger/stop
-                        if current_snow_cm > prev and hasattr(screen_manager, "overlay"):
-                            screen_manager.overlay.trigger(current_snow_cm - prev)
-                        elif hasattr(screen_manager, "overlay"):
-                            screen_manager.overlay.stop()
-
-                        # Update LEDs based on this change
-                        leds_set_snow(current_snow_cm, prev)
-
-                        main._prev_snow_cm = current_snow_cm
-
-                except Exception:
-                    current_snow_cm = 0
-
             try:
-                check_and_trigger_alarm(current_snow_cm)
-            except Exception as e:
-                print(f"[Alarm] check failed: {e}")
+                current_snow_cm = getattr(main, "_prev_snow_cm", 0)
 
-            time.sleep(0.1)
+                if touch:
+                    try:
+                        coord = touch.read_touch()
+                    except Exception:
+                        logger.exception("Touch read failed.")
+                        coord = None
+                    if coord:
+                        try:
+                            mapped = calibrator.map_raw_to_screen(*coord)
+                            if VERBOSE:
+                                print(f"Touch @ {mapped}")
+                            screen_manager.handle_touch(*mapped)
+                        except Exception:
+                            active_screen = getattr(screen_manager, "current", None)
+                            screen_name = type(active_screen).__name__ if active_screen else "None"
+                            logger.exception(
+                                "Touch dispatch failed (screen=%s, raw=%s)",
+                                screen_name,
+                                coord,
+                            )
+
+                now_ts = time.time()
+                if now_ts - last_fetch > FETCH_PERIOD:
+                    try:
+                        if not DEV_MODE:
+                            hill.getSnow()
+                        last_fetch = now_ts
+                        print(f"[Snow] {hill.name}: 24h new = {hill.newSnow}")
+                    except Exception as e:
+                        print(f"[Snow] Fetch failed: {e}")
+
+                    # Refresh the screen so SnowReportScreen shows the latest values
+                    try:
+                        screen_manager.redraw()
+                    except Exception:
+                        logger.exception("Screen redraw failed.")
+
+                    try:
+                        sn = hill.newSnow
+                        if isinstance(sn, str):
+                            sn = _safe_int(sn)
+                        current_snow_cm = int(sn)
+
+                        prev = getattr(main, "_prev_snow_cm", None)
+
+                        # First run: initialize LEDs once
+                        if prev is None:
+                            main._prev_snow_cm = current_snow_cm
+                            leds_set_snow(current_snow_cm, current_snow_cm)
+
+                        # Subsequent runs: only react when value changes
+                        elif current_snow_cm != prev:
+                            print(f"[Snow] Change detected: {prev} -> {current_snow_cm}")
+
+                            # Snowfall overlay trigger/stop
+                            if current_snow_cm > prev and hasattr(screen_manager, "overlay"):
+                                screen_manager.overlay.trigger(current_snow_cm - prev)
+                            elif hasattr(screen_manager, "overlay"):
+                                screen_manager.overlay.stop()
+
+                            # Update LEDs based on this change
+                            leds_set_snow(current_snow_cm, prev)
+
+                            main._prev_snow_cm = current_snow_cm
+
+                    except Exception:
+                        current_snow_cm = 0
+
+                try:
+                    check_and_trigger_alarm(current_snow_cm)
+                except Exception as e:
+                    print(f"[Alarm] check failed: {e}")
+
+                time.sleep(0.1)
+            except Exception:
+                logger.exception("Main loop error; continuing after backoff.")
+                time.sleep(0.5)
 
     except KeyboardInterrupt:
         print("Exiting.")
@@ -2937,6 +4160,31 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    # normal program startup continues here ...
-    main()
+    def _run_with_restart(max_restarts=3, backoff_base=5.0):
+        attempts = 0
+        while True:
+            try:
+                main()
+                return
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                attempts += 1
+                logger.exception(
+                    "Fatal error in main; restarting (attempt %s/%s)",
+                    attempts,
+                    max_restarts,
+                )
+                try:
+                    stop_powder_day_anthem()
+                    _teardown_buzzer()
+                    leds_clear()
+                except Exception:
+                    pass
+                if attempts >= max_restarts:
+                    logger.error("Max restart attempts reached; giving up.")
+                    break
+                time.sleep(min(backoff_base * attempts, 30.0))
 
+    # normal program startup continues here ...
+    _run_with_restart()
