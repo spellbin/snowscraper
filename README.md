@@ -1,134 +1,161 @@
-Snow Scraper ⛰️❄️
+Snow Scraper
 
-Snow Scraper is a Raspberry Pi–based project that scrapes live snowfall
+Snow Scraper is a Raspberry Pi based project that scrapes live snowfall
 reports from major ski resorts, displays the data on a touchscreen LCD,
-and triggers fun visual and audio alerts when a powder day arrives.
+and triggers visual and audio alerts when a powder day arrives.
 
-It’s built for the Raspberry Pi Zero 2 W (Python 3.9) and integrates a
-WS2812 RGB LED ring, passive buzzer, and touchscreen display. Perfect
-for ski bums, hackers, and anyone who wants to wake up to the sound of
-fresh snow.
+It is built for the Raspberry Pi Zero 2 W (Python 3.9) and integrates a
+WS2812 RGB LED ring, passive buzzer, and ILI9341 touchscreen display.
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
 Features
 
--   Real-time snow data
-    Scrapes snowfall reports (24hr, 7-day, base depth) from resorts like
-    Sun Peaks, Whistler, Big White, Revelstoke, and more.
+- Real-time snow data
+  Scrapes snowfall reports (24hr, 7-day, base depth) for supported resorts.
 
--   Touchscreen GUI
-    A 320×240 ILI9341 LCD with resistive touchscreen lets you navigate
-    reports, settings, and updates.
+- Avalanche forecast views
+  Pulls avalanche.ca point forecasts using resort lat/lon, with a
+  text-first view and a colored risk mask overlay.
 
--   Powder Day Anthem
-    A passive buzzer plays a looping melody when your snow thresholds
-    are hit.
+- Touchscreen GUI
+  320x240 ILI9341 LCD with resistive touch controls for reports, settings,
+  WiFi config, and updates.
 
--   Snow LEDs
-    WS2812 RGB LED ring (7 pixels) shows snowfall amounts with color
-    gradients, breathing effects for changes, sparkles for >15 cm, and
-    rainbow fades on startup.
+- Brightness profiles
+  One-tap dimming that applies to the LCD (overlay) and LED brightness,
+  persisted in conf/brightness.conf.
 
--   Configurable alarms
-    Trigger at a set time if snowfall exceeds a threshold, or use
-    incremental “always-on” alarms (e.g. every +5 cm).
+- Powder day alerts
+  Passive buzzer melody and LED ring effects when snowfall thresholds hit.
 
--   Touchscreen calibration
-    calibrate_touchscreen.py provides a standalone two-point calibrator
-    with results saved in JSON.
+- Snow LEDs
+  7-pixel WS2812 ring shows snowfall with gradients, breathing on change,
+  sparkles for heavy snow, and startup rainbow.
 
-------------------------------------------------------------------------
+- Alarm modes
+  Time-based alarm plus incremental "always-on" alarms (example: every +5 cm).
+
+- On-device touch calibration
+  Built-in 4-point calibration if no calibration file is present.
+
+- WiFi setup screen
+  Edits /etc/wpa_supplicant/wpa_supplicant.conf and triggers reconfigure.
+
+- Robust logging
+  Logs to logs/snowgui.log with rotation and console fallback.
+
+- SD wear reduction
+  Tries to enforce volatile journald storage (RAM only) on systemd systems.
+
+-----------------------------------------------------------------------
 
 Hardware Requirements
 
--   Raspberry Pi Zero 2 W (tested)
--   ILI9341 SPI LCD (320×240) with XPT2046 touch controller
--   WS2812 RGB LED ring (7 pixels)
--   Passive buzzer (wired to GPIO18)
--   Wi-Fi connection for fetching resort data
+- Raspberry Pi Zero 2 W (tested)
+- ILI9341 SPI LCD (320x240) with XPT2046 touch controller
+- WS2812 RGB LED ring (7 pixels)
+- Passive buzzer (wired to GPIO18)
+- WiFi connection for fetching resort data
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
 Software Requirements
 
--   Raspberry Pi OS (32-bit Lite recommended)
--   Python 3.9
--   Required libraries:
+- Raspberry Pi OS (32-bit Lite recommended)
+- Python 3.9
+- Required libraries:
 
-    sudo apt update
-    sudo apt install python3-pip git python3-psutil 
-    sudo apt install libjpeg62-turbo-dev zlib1g-dev libopenjp2-7 libtiff5 libfreetype6-dev
-    sudo pip3 install python-daemon requests beautifulsoup4 luma.lcd RPi.GPIO packaging pillow spidev rpi_ws281x
+  sudo apt update
+  sudo apt install python3-pip git python3-psutil
+  sudo apt install libjpeg62-turbo-dev zlib1g-dev libopenjp2-7 libtiff5 libfreetype6-dev
+  sudo pip3 install python-daemon requests beautifulsoup4 luma.lcd RPi.GPIO packaging pillow spidev rpi_ws281x
 
-
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
 Installation
 
 Clone the repository:
 
-    git clone https://github.com/spellbin/snowscraper.git
-    cd snowscraper
+  git clone https://github.com/spellbin/snowscraper.git
+  cd snowscraper
 
-(Optional) run the standalone calibrator:
+(Optional) run the standalone touch calibrator:
 
-    sudo python3 calibrate_touchscreen.py
+  sudo python3 calibrate_touchscreen.py
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
 Usage
 
 Start the main GUI:
 
-    python3 snowgui.py
+  python3 snowgui.py
 
 Run with watchdog daemon (recommended):
 
-    sudo chmod +x setup_service.sh
-    sudo ./setup_service.sh
-------------------------------------------------------------------------
+  sudo chmod +x setup_service.sh
+  sudo ./setup_service.sh
 
-Configuration
+-----------------------------------------------------------------------
 
--   skihill.conf — stores selected resort index.
--   alarm.conf — stores alarm settings.
--   snow_log.json — rolling daily snowfall logs (per resort).
--   touch_calibration.json — generated by calibrator, used for touch
-    mapping.
--   heartbeat.txt — updated periodically by snowgui.py, checked by
-    watchdog.
+Configuration Files
 
-------------------------------------------------------------------------
+- conf/skihill.conf
+  Stores selected resort index.
+
+- conf/alarm.conf
+  Stores alarm settings and thresholds.
+
+- conf/brightness.conf
+  Stores the brightness profile index (applies to LCD + LEDs).
+
+- conf/touch_calibration.json
+  Generated by calibration workflow.
+
+- conf/resorts_meta.yaml
+  Resort metadata (lat/lon, region) used for avalanche forecasts.
+
+- logs/snow_log.json
+  Rolling daily snowfall logs per resort.
+
+- logs/snowgui.log
+  Rotating application log.
+
+- heartbeat.txt
+  Updated by snowgui.py; symlinked to /run/heartbeat.txt for watchdogs.
+
+-----------------------------------------------------------------------
 
 LED Demo Mode
 
-You can run the LEDs without fetching live snow data:
+Run the LEDs without fetching live snow data:
 
-    python3 snowgui.py --led-demo
-    python3 snowgui.py --led-demo "0,2,5,10,15,20,0"
+  python3 snowgui.py --led-demo
+  python3 snowgui.py --led-demo "0,2,5,10,15,20,0"
 
-------------------------------------------------------------------------
+You can also set SNOWGUI_LED_DEMO=1 in the environment.
+
+-----------------------------------------------------------------------
 
 Project Structure
 
-    .
-    ├── snowgui.py              # Main GUI + scraper
-    ├── setup_service.sh        # Create a system.d service for autoboot
-    ├── calibrate_touchscreen.py # Standalone calibration tool
-    ├── conf/                   # Config + calibration data
-    ├── logs/                   # Log output
-    └── images/                 # UI image assets (mainmenu.png, splashlogo.png, etc.)
+  .
+  |-- snowgui.py               # Main GUI + scraper
+  |-- setup_service.sh         # Create a systemd service for autoboot
+  |-- calibrate_touchscreen.py # Standalone calibration tool
+  |-- conf/                    # Config + calibration data
+  |-- logs/                    # Log output
+  |-- images/                  # UI image assets (mainmenu.png, splashlogo.png, etc.)
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
 Updating
 
-The app can self-update via the Update screen, which checks GitHub
-releases.
+The Update screen checks GitHub releases. On systemd systems, updates run
+in a transient systemd unit to safely stop/start the GUI service.
+
 To manually update:
 
-    git fetch --all --tags
-    git checkout tags/<version>
-
-------------------------------------------------------------------------
+  git fetch --all --tags
+  git checkout tags/<version>
