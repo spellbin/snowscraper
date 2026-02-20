@@ -1,100 +1,198 @@
-Sun Peaks:
-  lat: 50.882
-  lon: -119.908
-  label: Sun Peaks Village
+# -----------------------------
+# Resorts Meta for PowderDrive
+# -----------------------------
+# Each entry:
+# - name: Human-readable resort name
+# - slug: Must match the JSON filename from Snow Plow (slug.json)
+# - lat, lon: Coordinates of the main base area
+# - region: Optional (Province/State)
+# - country: Optional
 
-Silverstar:
+- name: "Sun Peaks"
+  slug: "Sun_Peaks"
+  lat: 50.883
+  lon: -119.885
+  region: "BC"
+  country: "CA"
+
+- name: "Revelstoke"
+  slug: "Revelstoke"
+  lat: 51.0
+  lon: -118.2
+  region: "BC"
+  country: "CA"
+
+- name: "Big White"
+  slug: "Big_White"
+  lat: 49.721
+  lon: -118.986
+  region: "BC"
+  country: "CA"
+
+- name: "Whistler"
+  slug: "Whistler"
+  lat: 50.113
+  lon: -122.954
+  region: "BC"
+  country: "CA"
+
+- name: "Silverstar"
+  slug: "Silverstar"
   lat: 50.359
   lon: -119.057
-  label: SilverStar Mountain
+  region: "BC"
+  country: "CA"
 
-Big White:
-  lat: 49.722
-  lon: -118.935
-  label: Big White
+- name: "Apex Mountain"
+  slug: "Apex_Mountain"
+  lat: 49.395
+  lon: -119.942
+  region: "BC"
+  country: "CA"
 
-Whistler:
-  lat: 50.116
-  lon: -122.957
-  label: Whistler Blackcomb
+- name: "Whitewater"
+  slug: "Whitewater"
+  lat: 49.462
+  lon: -117.289
+  region: "BC"
+  country: "CA"
 
-Revelstoke:
-  lat: 50.959
-  lon: -118.151
-  label: Revelstoke Mountain
+- name: "Whitefish"
+  slug: "Whitefish"
+  lat: 48.480
+  lon: -114.350
+  region: "MT"
+  country: "US"
 
-Kicking Horse:
-  lat: 51.297
-  lon: -117.048
-  label: Kicking Horse
+- name: "Mt Baker"
+  slug: "Mt_Baker"
+  lat: 48.862
+  lon: -121.688
+  region: "WA"
+  country: "US"
 
-Lake Louise:
-  lat: 51.441
-  lon: -116.163
-  label: Lake Louise
+- name: "Powder King"
+  slug: "Powder_King"
+  lat: 55.356
+  lon: -122.610
+  region: "BC"
+  country: "CA"
 
-Banff Sunshine:
+- name: "Fernie"
+  slug: "Fernie"
+  lat: 49.462
+  lon: -115.090
+  region: "BC"
+  country: "CA"
+
+- name: "Banff Sunshine"
+  slug: "Banff_Sunshine"
   lat: 51.115
   lon: -115.763
-  label: Sunshine Village
+  region: "AB"
+  country: "CA"
 
-Red Mountain:
-  lat: 49.105
-  lon: -117.807
-  label: Red Mountain
+- name: "Lake Louise"
+  slug: "Lake_Louise"
+  lat: 51.442
+  lon: -116.161
+  region: "AB"
+  country: "CA"
 
-Whitewater:
-  lat: 49.448
-  lon: -117.275
-  label: Whitewater
+- name: "Mount Norquay"
+  slug: "Mount_Norquay"
+  lat: 51.203
+  lon: -115.597
+  region: "AB"
+  country: "CA"
 
-Apex Mountain:
-  lat: 49.399
-  lon: -119.912
-  label: Apex Mountain
+- name: "Arapahoe Basin"
+  slug: "Arapahoe_Basin"
+  lat: 39.642
+  lon: -105.871
+  region: "CO"
+  country: "US"
 
-Mount Norquay:
-  lat: 51.202
-  lon: -115.661
-  label: Mt. Norquay
+- name: "Kicking Horse"
+  slug: "Kicking_Horse"
+  lat: 51.305
+  lon: -116.976
+  region: "BC"
+  country: "CA"
 
-Fernie:
-  lat: 49.463
-  lon: -115.090
-  label: Fernie Alpine
-
-Powder King:
-  lat: 55.421
-  lon: -122.488
-  label: Powder King
-
-Panorama:
+- name: "Panorama"
+  slug: "Panorama"
   lat: 50.460
   lon: -116.230
-  label: Panorama
+  region: "BC"
+  country: "CA"
 
-Marmot Basin:
+- name: "Red Mountain"
+  slug: "Red_Mountain"
+  lat: 49.104
+  lon: -117.816
+  region: "BC"
+  country: "CA"
+
+- name: "Marmot Basin"
+  slug: "Marmot_Basin"
   lat: 52.780
   lon: -118.080
-  label: Marmot Basin
+  region: "AB"
+  country: "CA"
 
-Mt. Timothy:
+- name: "Mt. Timothy"
+  slug: "Mt._Timothy"
   lat: 51.810
   lon: -121.330
-  label: Mt. Timothy
+  region: "BC"
+  country: "CA"
 
-Mount Washington:
+- name: "Mount Washington"
+  slug: "Mount_Washington"
   lat: 49.750
   lon: -125.300
-  label: Mount Washington
+  region: "BC"
+  country: "CA"
 
-Troll Resort:
+- name: "Troll Resort"
+  slug: "Troll_Resort"
   lat: 53.087
   lon: -121.945
-  label: Troll Resort
+  region: "BC"
+  country: "CA"
 
-Purden:
+- name: "Purden"
+  slug: "Purden"
   lat: 53.908
   lon: -121.897
-  label: Purden
+  region: "BC"
+  country: "CA"
 
+- name: "Ragged Mountain"
+  slug: "Ragged_Mountain"
+  lat: 43.486
+  lon: -71.842
+  region: "NH"
+  country: "US"
+
+- name: "Jay Peak"
+  slug: "Jay_Peak"
+  lat: 44.937
+  lon: -72.525
+  region: "VT"
+  country: "US"
+
+- name: "Stowe"
+  slug: "Stowe"
+  lat: 44.530
+  lon: -72.781
+  region: "VT"
+  country: "US"
+
+- name: "Palisades Tahoe"
+  slug: "Palisades_Tahoe"
+  lat: 39.197
+  lon: -120.235
+  region: "CA"
+  country: "US"

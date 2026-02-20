@@ -15,7 +15,7 @@ import tempfile
 from logging.handlers import RotatingFileHandler
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 try:
     import yaml  # Optional; used for resorts_meta.yaml parsing
 except Exception:
@@ -105,31 +105,14 @@ BRIGHTNESS_LEVELS = [
 ]
 
 # Shared resort metadata used across the UI.
-RESORT_NAMES = [
-    "Sun Peaks",
-    "Silverstar",
-    "Big White",
-    "Whistler",
-    "Revelstoke",
-    "Kicking Horse",
-    "Lake Louise",
-    "Banff Sunshine",
-    "Red Mountain",
-    "Whitewater",
-    "Apex Mountain",
-    "Mount Norquay",
-    "Fernie",
-    "Powder King",
-    "Mount Washington",
-    "Mt. Timothy",
-    "Panorama",
-    "Purden",
-    "Troll Resort",
-    "Marmot Basin",
-]
-
 RESORT_META_FILE = "conf/resorts_meta.yaml"
-
+COUNTRY_CONF_FILE = "conf/country.conf"
+REGION_CONF_FILE = "conf/region.conf"
+ALL_COUNTRIES_LABEL = "All Countries"
+ALL_REGIONS_LABEL = "All Regions"
+ALL_RESORTS_LABEL = "All Resorts"  # legacy alias accepted in region.conf
+OTHER_COUNTRY_LABEL = "Other"
+OTHER_REGION_LABEL = "Other"
 AVY_POINT_URL = "https://api.avalanche.ca/forecasts/en/products/point"
 AVY_HEADERS = {
     "User-Agent": "SnowGUI-Avy/0.1 (+https://www.snowscraper.ca)",
@@ -638,12 +621,12 @@ def _shrink_to_fit(draw, text: str, box_w: int, box_h: int,
     if best_font:
         return best_font, text
 
-    # If even min size won’t fit, ellipsize
+    # If even min size wonÃ¢â‚¬â„¢t fit, ellipsize
     f = _font_cached(font_path, min_sz)
     s = text
-    while s and _measure(draw, s + "…", f)[0] > box_w:
+    while s and _measure(draw, s + "Ã¢â‚¬Â¦", f)[0] > box_w:
         s = s[:-1]
-    return f, (s + "…") if s else "…"
+    return f, (s + "Ã¢â‚¬Â¦") if s else "Ã¢â‚¬Â¦"
 
 def draw_text_in_box(img, text: str, box_xywh, font_path: str,
                      color="white", min_sz=10, max_sz=40, align="center"):
@@ -740,7 +723,7 @@ class SnowLEDs:
         Set visual state for current snow.
 
         - Uses REAL cm values for change detection, breathing, and sparkle logic.
-        - Clamps ONLY for color mapping (0–20 cm visual scale).
+        - Clamps ONLY for color mapping (0Ã¢â‚¬â€œ20 cm visual scale).
         """
         # Raw values (can be >20)
         raw_now = int(cm_now or 0)
@@ -852,7 +835,7 @@ class SnowLEDs:
             time.sleep(0.02)  # ~50 FPS
 
     def _breath_period_for_delta(self, delta):
-        # delta 1 -> slow (~8s), delta ≥10 -> fast (~1.5s)
+        # delta 1 -> slow (~8s), delta Ã¢â€°Â¥10 -> fast (~1.5s)
         delta = max(1, min(10, int(delta)))
         return max(1.5, 8.0 - (delta - 1) * 0.73)
 
@@ -1046,7 +1029,7 @@ def _load_font(path="fonts/pixem.otf", size=18):
     try:
         return ImageFont.truetype(path, size)
     except Exception:
-        print(f"⚠️ {path} not found. Using default font.")
+        print(f"Ã¢Å¡Â Ã¯Â¸Â {path} not found. Using default font.")
         return ImageFont.load_default()
 
 
@@ -1172,7 +1155,7 @@ def _teardown_buzzer():
 def _play_melody_blocking(melody, stop_event: threading.Event, pause_between_loops=6.0):
     if not _HAS_GPIO:
         while not stop_event.is_set():
-            print("🎿 Powder Day Anthem (silent dev mode)")
+            print("Ã°Å¸Å½Â¿ Powder Day Anthem (silent dev mode)")
             time.sleep(sum(d for _, d in melody) + pause_between_loops)
         return
 
@@ -1222,7 +1205,7 @@ def stop_powder_day_anthem():
 
 def check_and_trigger_alarm(current_snow_cm):
     """
-    active: fire once at HH:MM if snow ≥ trigger (once per day)
+    active: fire once at HH:MM if snow Ã¢â€°Â¥ trigger (once per day)
     active_anytime: fire at trigger and each +increment, resetting daily
     """
     cfg = load_alarm_cfg()
@@ -1242,7 +1225,7 @@ def check_and_trigger_alarm(current_snow_cm):
     # Mode 1: exact time, once/day
     if active and not anytime:
         if (not st["triggered_today"]) and matches_time and current_snow_cm >= trig:
-            print(f"[Alarm] Timed trigger {hr:02d}:{mn:02d} | {current_snow_cm} ≥ {trig}")
+            print(f"[Alarm] Timed trigger {hr:02d}:{mn:02d} | {current_snow_cm} Ã¢â€°Â¥ {trig}")
             start_powder_day_anthem()
             threading.Timer(sum(d for _, d in _POWDER_DAY_ANTHEM), stop_powder_day_anthem).start()
             st["triggered_today"] = True
@@ -1256,7 +1239,7 @@ def check_and_trigger_alarm(current_snow_cm):
             st["next_threshold"] = trig
         fired = False
         while inc > 0 and current_snow_cm >= int(st["next_threshold"]):
-            print(f"[Alarm] Anytime trigger | {current_snow_cm} ≥ {st['next_threshold']} (step {inc})")
+            print(f"[Alarm] Anytime trigger | {current_snow_cm} Ã¢â€°Â¥ {st['next_threshold']} (step {inc})")
             start_powder_day_anthem()
             threading.Timer(sum(d for _, d in _POWDER_DAY_ANTHEM), stop_powder_day_anthem).start()
             st["next_threshold"] = int(st["next_threshold"]) + inc
@@ -1457,7 +1440,7 @@ def init_display():
         device = ili9341(serial_interface=serial, width=320, height=240, rotate=0)
         return device
     except Exception as e:
-        print(f"⚠️ Display init failed ({e}); falling back to dummy device.")
+        print(f"Ã¢Å¡Â Ã¯Â¸Â Display init failed ({e}); falling back to dummy device.")
         device = _DummyDevice()
         return device
     
@@ -1570,13 +1553,220 @@ def _read_selected_resort_index(path="conf/skihill.conf") -> int:
 
 def _write_selected_resort_index(index: int, path="conf/skihill.conf") -> bool:
     """Clamp and persist the selected resort index."""
+    names = get_resort_names()
     try:
-        index = max(0, min(index, len(RESORT_NAMES) - 1))
+        if names:
+            index = max(0, min(index, len(names) - 1))
+        else:
+            index = 0
         _atomic_write_text(str(index), path)
         return True
     except Exception as e:
         print(f"[SelectResort] Failed to write {path}: {e}")
         return False
+
+
+def get_resort_names(meta: Optional[dict] = None) -> List[str]:
+    source = meta if isinstance(meta, dict) else _load_resort_meta()
+    return list(source.keys()) if isinstance(source, dict) else []
+
+
+def _read_selected_country(path=COUNTRY_CONF_FILE, default=ALL_COUNTRIES_LABEL) -> str:
+    try:
+        with open(path, "r") as f:
+            raw = f.read().strip()
+        return raw or default
+    except Exception as e:
+        print(f"[SelectCountry] Could not read {path}: {e}. Using {default}.")
+        return default
+
+
+def _write_selected_country(country: str, path=COUNTRY_CONF_FILE) -> bool:
+    try:
+        country = (country or "").strip() or ALL_COUNTRIES_LABEL
+        _atomic_write_text(country, path)
+        return True
+    except Exception as e:
+        print(f"[SelectCountry] Failed to write {path}: {e}")
+        return False
+
+
+def _read_selected_region(path=REGION_CONF_FILE, default=ALL_REGIONS_LABEL) -> str:
+    try:
+        with open(path, "r") as f:
+            raw = f.read().strip()
+        selected = raw or default
+        if selected.casefold() == ALL_RESORTS_LABEL.casefold():
+            selected = ALL_REGIONS_LABEL
+        return selected
+    except Exception as e:
+        print(f"[SelectRegion] Could not read {path}: {e}. Using {default}.")
+        return default
+
+
+def _write_selected_region(region: str, path=REGION_CONF_FILE) -> bool:
+    try:
+        region = (region or "").strip() or ALL_REGIONS_LABEL
+        _atomic_write_text(region, path)
+        return True
+    except Exception as e:
+        print(f"[SelectRegion] Failed to write {path}: {e}")
+        return False
+
+
+def get_countries(meta: dict) -> List[str]:
+    if not isinstance(meta, dict):
+        meta = {}
+    country_map = {}
+    has_country = False
+    has_other = False
+
+    for name in get_resort_names(meta):
+        info = meta.get(name)
+        country = info.get("country") if isinstance(info, dict) else None
+        country = str(country).strip() if country is not None else ""
+        if country:
+            has_country = True
+            key = country.casefold()
+            if key not in country_map:
+                country_map[key] = country
+        else:
+            has_other = True
+
+    if not has_country:
+        return [ALL_COUNTRIES_LABEL]
+    if has_other and OTHER_COUNTRY_LABEL.casefold() not in country_map:
+        country_map[OTHER_COUNTRY_LABEL.casefold()] = OTHER_COUNTRY_LABEL
+
+    countries = sorted(country_map.values(), key=lambda s: s.casefold())
+    return [ALL_COUNTRIES_LABEL] + countries
+
+
+def get_regions(meta: dict, selected_country: str = ALL_COUNTRIES_LABEL) -> List[str]:
+    if not isinstance(meta, dict):
+        meta = {}
+
+    selected_country_key = (selected_country or "").strip().casefold()
+    all_countries = (not selected_country_key) or (selected_country_key == ALL_COUNTRIES_LABEL.casefold())
+
+    region_map = {}
+    has_region = False
+    has_other = False
+
+    for name in get_resort_names(meta):
+        info = meta.get(name)
+        if not isinstance(info, dict):
+            continue
+
+        country = str(info.get("country") or "").strip()
+        if not all_countries:
+            if selected_country_key == OTHER_COUNTRY_LABEL.casefold():
+                if country:
+                    continue
+            elif country.casefold() != selected_country_key:
+                continue
+
+        region = str(info.get("region") or "").strip()
+        if region:
+            has_region = True
+            key = region.casefold()
+            if key not in region_map:
+                region_map[key] = region
+        else:
+            has_other = True
+
+    if not has_region:
+        return [ALL_REGIONS_LABEL]
+    if has_other and OTHER_REGION_LABEL.casefold() not in region_map:
+        region_map[OTHER_REGION_LABEL.casefold()] = OTHER_REGION_LABEL
+
+    regions = sorted(region_map.values(), key=lambda s: s.casefold())
+    return [ALL_REGIONS_LABEL] + regions
+
+
+def get_active_resorts(selected_country: str, selected_region: str, meta: dict) -> List[str]:
+    names = get_resort_names(meta)
+    if not names:
+        return []
+    if not isinstance(meta, dict):
+        meta = {}
+
+    selected_country_key = (selected_country or "").strip().casefold()
+    selected_region_key = (selected_region or "").strip().casefold()
+
+    all_countries = (not selected_country_key) or (selected_country_key == ALL_COUNTRIES_LABEL.casefold())
+    all_regions = (
+        (not selected_region_key)
+        or (selected_region_key == ALL_REGIONS_LABEL.casefold())
+        or (selected_region_key == ALL_RESORTS_LABEL.casefold())
+    )
+
+    results = []
+    for name in names:
+        info = meta.get(name)
+        if not isinstance(info, dict):
+            continue
+
+        country = str(info.get("country") or "").strip()
+        region = str(info.get("region") or "").strip()
+
+        if not all_countries:
+            if selected_country_key == OTHER_COUNTRY_LABEL.casefold():
+                if country:
+                    continue
+            elif country.casefold() != selected_country_key:
+                continue
+
+        if not all_regions:
+            if selected_region_key == OTHER_REGION_LABEL.casefold():
+                if region:
+                    continue
+            elif region.casefold() != selected_region_key:
+                continue
+
+        results.append(name)
+
+    if not results:
+        return sorted(names, key=lambda s: s.casefold())
+    return sorted(results, key=lambda s: s.casefold())
+
+
+def current_resort_name() -> str:
+    names = get_resort_names()
+    if not names:
+        return "Resort"
+    idx = max(0, min(_read_selected_resort_index(), len(names) - 1))
+    return names[idx]
+
+
+def set_current_resort_by_name(name: str) -> None:
+    names = get_resort_names()
+    # Persist the global metadata-derived index, not a filtered local index.
+    try:
+        idx = names.index(name)
+    except ValueError:
+        print(f"[SelectResort] Unknown resort name '{name}'; keeping existing selection.")
+        return
+    _write_selected_resort_index(idx)
+
+
+def cycle_resort_in_active_region(direction: int, meta: Optional[dict] = None) -> bool:
+    if direction == 0:
+        return False
+    meta = meta if meta is not None else _load_resort_meta()
+    country = _read_selected_country()
+    region = _read_selected_region()
+    active = get_active_resorts(country, region, meta)
+    if not active:
+        return False
+    cur_name = current_resort_name()
+    if cur_name not in active:
+        set_current_resort_by_name(active[0])
+        cur_name = active[0]
+    idx = active.index(cur_name)
+    next_name = active[(idx + direction) % len(active)]
+    set_current_resort_by_name(next_name)
+    return True
 
 
 def _resort_slug(name: str) -> str:
@@ -1625,37 +1815,134 @@ def _coerce_float(val, default=None):
         return default if default is not None else val
 
 
-def _parse_simple_yaml(text: str) -> dict:
+def _parse_simple_yaml(text: str):
     """
-    Minimal YAML-ish parser for simple key: value maps used by resorts_meta.yaml.
-    Falls back to strings/floats; ignores indentation errors.
+    Minimal YAML-ish parser for resort metadata.
+    Supports either a top-level list of maps or a map of maps.
     """
-    data = {}
-    current = None
+    map_data = {}
+    list_data = []
+    current_map = None
+    current_item = None
+    in_list = False
+
     for raw in text.splitlines():
         line = raw.rstrip()
-        if not line.strip() or line.lstrip().startswith("#"):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-        if not line.startswith(" "):
-            key = line.split(":", 1)[0].strip()
-            if key:
-                current = data.setdefault(key, {})
+
+        if stripped.startswith("- "):
+            in_list = True
+            if current_item is not None:
+                list_data.append(current_item)
+            current_item = {}
+            item_text = stripped[2:].strip()
+            if item_text and ":" in item_text:
+                sub_key, sub_val = item_text.split(":", 1)
+                sub_key = sub_key.strip()
+                sub_val = sub_val.strip().strip('"').strip("'")
+                if sub_key:
+                    current_item[sub_key] = _coerce_float(sub_val, sub_val)
             continue
-        if current is None or ":" not in line:
+
+        if line.startswith(" ") and ":" in stripped:
+            sub_key, sub_val = stripped.split(":", 1)
+            sub_key = sub_key.strip()
+            sub_val = sub_val.strip().strip('"').strip("'")
+            if not sub_key:
+                continue
+            target = current_item if in_list else current_map
+            if isinstance(target, dict):
+                target[sub_key] = _coerce_float(sub_val, sub_val)
             continue
-        sub_key, sub_val = line.strip().split(":", 1)
-        sub_key = sub_key.strip()
-        sub_val = sub_val.strip().strip('"').strip("'")
-        if not sub_key:
+
+        if ":" not in stripped:
             continue
-        current[sub_key] = _coerce_float(sub_val, sub_val)
-    return data
+
+        in_list = False
+        key, val = stripped.split(":", 1)
+        key = key.strip()
+        val = val.strip()
+        if not key:
+            continue
+        if val:
+            cleaned = val.strip('"').strip("'")
+            map_data[key] = _coerce_float(cleaned, cleaned)
+            current_map = None
+        else:
+            current_map = map_data.setdefault(key, {})
+
+    if current_item is not None:
+        list_data.append(current_item)
+
+    if list_data and not map_data:
+        return list_data
+    if map_data and not list_data:
+        return map_data
+    if list_data:
+        map_data["resorts"] = list_data
+    return map_data
+
+
+def _normalize_resort_meta(raw) -> dict:
+    normalized = {}
+
+    def add_entry(name, info):
+        key = str(name or "").strip()
+        if not key:
+            return
+
+        entry = {}
+        if isinstance(info, dict):
+            entry.update(info)
+        entry["name"] = key
+
+        for field in ("slug", "region", "country"):
+            if field in entry and entry[field] is not None:
+                text_val = str(entry[field]).strip()
+                if text_val:
+                    entry[field] = text_val
+                else:
+                    entry.pop(field, None)
+
+        for lat_key in ("lat", "latitude", "y"):
+            if lat_key in entry:
+                entry[lat_key] = _coerce_float(entry[lat_key], entry[lat_key])
+        for lon_key in ("lon", "long", "lng", "longitude", "x"):
+            if lon_key in entry:
+                entry[lon_key] = _coerce_float(entry[lon_key], entry[lon_key])
+
+        normalized[key] = entry
+
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            add_entry(item.get("name"), item)
+        return normalized
+
+    if isinstance(raw, dict):
+        list_candidates = raw.get("resorts")
+        if isinstance(list_candidates, list):
+            for item in list_candidates:
+                if not isinstance(item, dict):
+                    continue
+                add_entry(item.get("name"), item)
+            return normalized
+
+        for key, val in raw.items():
+            if not isinstance(val, dict):
+                continue
+            add_entry(val.get("name") or key, val)
+
+    return normalized
 
 
 @lru_cache(maxsize=1)
 def _load_resort_meta(path=RESORT_META_FILE) -> dict:
     """
-    Load resort -> lat/lon map from YAML (or JSON).
+    Load resort metadata from YAML (or JSON) into a name -> info map.
     Safe to call repeatedly; cache keeps disk IO low.
     """
     if not os.path.exists(path):
@@ -1672,7 +1959,7 @@ def _load_resort_meta(path=RESORT_META_FILE) -> dict:
                 data = json.loads(raw)
             except Exception:
                 data = _parse_simple_yaml(raw)
-        return data if isinstance(data, dict) else {}
+        return _normalize_resort_meta(data)
     except Exception as e:
         print(f"[Avy] Failed to load {path}: {e}")
         return {}
@@ -2000,8 +2287,8 @@ class skiHill:
 
 
 def create_selected_hill():
-    idx = max(0, min(_read_selected_resort_index(), len(RESORT_NAMES) - 1))
-    name = RESORT_NAMES[idx]
+    # Keep skihill.conf index mapped to metadata-derived resort ordering.
+    name = current_resort_name()
     return skiHill(name=name, url="", newSnow=0, weekSnow=0, baseSnow=0)
 
 def reload_hill():
@@ -2013,7 +2300,7 @@ def reload_hill():
 
 
 # ----------------------------
-# Wi‑Fi helpers
+# WiÃ¢â‚¬â€˜Fi helpers
 # ----------------------------
 def get_available_ssids():
     try:
@@ -2063,7 +2350,7 @@ class XPT2046:
     def __init__(self, spi_bus=0, spi_device=1, max_speed=400_000, penirq_gpio=None):
         self.spi = spidev.SpiDev()
         self.spi.open(spi_bus, spi_device)     # set spi_device=0 if T_CS is on CE0
-        self.spi.max_speed_hz = max_speed      # 200–400 kHz is robust
+        self.spi.max_speed_hz = max_speed      # 200Ã¢â‚¬â€œ400 kHz is robust
         self.spi.mode = 0b00
 
         self.penirq_gpio = penirq_gpio
@@ -2136,7 +2423,7 @@ class TouchCalibrator:
         self.y_max = int(data.get("y_max", 4095))
         # Sanity check
         if self.x_max <= self.x_min or self.y_max <= self.y_min:
-            print("⚠️ Calibration file invalid; resetting to defaults.")
+            print("Ã¢Å¡Â Ã¯Â¸Â Calibration file invalid; resetting to defaults.")
             self.x_min, self.y_min, self.x_max, self.y_max = 0, 0, 4095, 4095
             return False
         return True
@@ -2461,7 +2748,7 @@ class MainMenuScreen(Screen):
             if VERBOSE:
                 draw_cpu_badge(self.bg_image, pos="top-left")
         except FileNotFoundError:
-            print("⚠️ images/mainmenu.png not found. Using black background.")
+            print("Ã¢Å¡Â Ã¯Â¸Â images/mainmenu.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
 
         # top-left dim toggle (invisible hitbox over background art)
@@ -2507,7 +2794,7 @@ class ChartScreen(Screen):
         self.url = self._resolve_history_url()
         print(f"[ChartScreen] Using history URL for {getattr(self.hill, 'name', '?')}: {self.url}")
 
-        # Back button bottom-right → Mountain Report (same hill)
+        # Back button bottom-right Ã¢â€ â€™ Mountain Report (same hill)
         self.add_button(Button(
             240, 210, 310, 239,
             "Back",
@@ -2904,7 +3191,7 @@ class AvyForecastScreen(Screen):
         super().__init__()
         self.screen_manager = screen_manager
         self.hill = hill
-        self.resort_name = getattr(hill, "name", RESORT_NAMES[0] if RESORT_NAMES else "Resort")
+        self.resort_name = getattr(hill, "name", "") or current_resort_name()
         self.point = _get_resort_point(self.resort_name)
         self.forecast = None
         self.error = None
@@ -2932,12 +3219,7 @@ class AvyForecastScreen(Screen):
 
     # ---------- Data ----------
     def _cycle_resort(self, direction: int):
-        total = len(RESORT_NAMES)
-        if total == 0:
-            return
-        current_index = _read_selected_resort_index()
-        next_index = (current_index + direction) % total
-        if not _write_selected_resort_index(next_index):
+        if not cycle_resort_in_active_region(direction):
             return
 
         new_hill = reload_hill()
@@ -3033,7 +3315,7 @@ class AvyForecastScreen(Screen):
             stamp = dt.strftime("%b %d %H:%M")
         except Exception:
             stamp = issued
-        region_txt = f" • {region}" if region else ""
+        region_txt = f" Ã¢â‚¬Â¢ {region}" if region else ""
         return f"Updated {stamp}{region_txt}"
 
     # ---------- Draw ----------
@@ -3128,7 +3410,7 @@ class AvyMaskScreen(Screen):
         super().__init__()
         self.screen_manager = screen_manager
         self.hill = hill
-        self.resort_name = getattr(hill, "name", RESORT_NAMES[0] if RESORT_NAMES else "Resort")
+        self.resort_name = getattr(hill, "name", "") or current_resort_name()
         self.point = _get_resort_point(self.resort_name)
         self.forecast = None
         self.error = None
@@ -3145,12 +3427,7 @@ class AvyMaskScreen(Screen):
 
     # ---------- Data ----------
     def _cycle_resort(self, direction: int):
-        total = len(RESORT_NAMES)
-        if total == 0:
-            return
-        current_index = _read_selected_resort_index()
-        next_index = (current_index + direction) % total
-        if not _write_selected_resort_index(next_index):
+        if not cycle_resort_in_active_region(direction):
             return
 
         new_hill = reload_hill()
@@ -3261,7 +3538,7 @@ class PowderDriveSplashScreen(Screen):
             self.splash = Image.open("images/pdrive_splash.png").convert("RGB") \
                 .resize((device.width, device.height))
         except FileNotFoundError:
-            print("⚠️ images/pdrive_splash.png not found, using blank.")
+            print("Ã¢Å¡Â Ã¯Â¸Â images/pdrive_splash.png not found, using blank.")
             self.splash = Image.new("RGB", (device.width, device.height), "black")
 
         # Start worker thread immediately
@@ -3326,12 +3603,12 @@ class PowderDriveScreen(Screen):
         self.origin = origin
         self.results = results[:5] if isinstance(results, list) else []
 
-        # Background image (320×240)
+        # Background image (320Ãƒâ€”240)
         try:
             self.bg = Image.open("images/pdrive.png").convert("RGB") \
                 .resize((device.width, device.height))
         except Exception:
-            print("⚠️ Missing images/pdrive.png, using black fill.")
+            print("Ã¢Å¡Â Ã¯Â¸Â Missing images/pdrive.png, using black fill.")
             self.bg = Image.new("RGB", (device.width, device.height), "black")
 
         # Back button
@@ -3402,7 +3679,7 @@ class SnowReportScreen(Screen):
             self.bg_image = Image.open("images/mreport.png").convert("RGB").resize((device.width, device.height))
             self.image_missing = False
         except FileNotFoundError:
-            print("⚠️ images/mreport.png not found. Using black background.")
+            print("Ã¢Å¡Â Ã¯Â¸Â images/mreport.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
             self.image_missing = True
 
@@ -3426,12 +3703,7 @@ class SnowReportScreen(Screen):
 
     def _cycle_resort(self, direction: int):
         """Load the previous/next resort and refresh the report screen."""
-        total = len(RESORT_NAMES)
-        if total == 0:
-            return
-        current_index = _read_selected_resort_index()
-        next_index = (current_index + direction) % total
-        if not _write_selected_resort_index(next_index):
+        if not cycle_resort_in_active_region(direction):
             return
 
         new_hill = reload_hill()
@@ -3447,7 +3719,7 @@ class SnowReportScreen(Screen):
         font_title = _load_font("fonts/superpixel.ttf", size=30)
         font_line  = _load_font("fonts/ponderosa.ttf", size=16)
 
-        # Normalize numbers just in case they’re strings
+        # Normalize numbers just in case theyÃ¢â‚¬â„¢re strings
         new_cm   = _safe_int(h.newSnow)
         week_cm  = _safe_int(h.weekSnow)
         base_cm  = _safe_int(h.baseSnow)
@@ -3488,19 +3760,31 @@ class SnowReportScreen(Screen):
 
         present(img) # do NOT call device.display(img) directly anymore
 
-class SelectResortScreen(Screen):
+def _truncate_config_label(value: str, max_len: int = 13) -> str:
+    text = str(value or "")
+    return text[:max_len]
+class SelectCountryScreen(Screen):
     def __init__(self, screen_manager, hill):
         super().__init__()
         self.screen_manager = screen_manager
         self.hill = hill
-        self.skiHills = list(RESORT_NAMES)
-        self.current_index = max(0, min(_read_selected_resort_index(), len(self.skiHills) - 1))
+        self.meta = _load_resort_meta()
+        self.countries = get_countries(self.meta)
+        self.current_index = 0
+
+        selected = _read_selected_country()
+        if self.countries:
+            selected_key = (selected or "").casefold()
+            for idx, country in enumerate(self.countries):
+                if country.casefold() == selected_key:
+                    self.current_index = idx
+                    break
 
         try:
             self.bg_image = Image.open("images/select_resort.png").convert("RGB").resize((device.width, device.height))
             self.image_missing = False
         except FileNotFoundError:
-            print("⚠️ images/select_resort.png not found. Using black background.")
+            print("[SelectCountry] images/select_resort.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
             self.image_missing = True
 
@@ -3512,10 +3796,180 @@ class SelectResortScreen(Screen):
         self.add_button(Button(60, 175, 260, 200, "SelectCurrent", self.confirm_selection, visible=False))
 
     def confirm_selection(self):
-        index = self.current_index
-        selected = self.skiHills[index]
+        if not self.countries:
+            self.screen_manager.set_screen(ImageScreen("images/config.png", self.screen_manager, self.screen_manager.hill))
+            return
+
+        selected = self.countries[self.current_index]
+        _write_selected_country(selected)
+
+        regions = get_regions(self.meta, selected)
+        current_region = _read_selected_region()
+        current_key = (current_region or "").casefold()
+        if not any((region or "").casefold() == current_key for region in regions):
+            _write_selected_region(ALL_REGIONS_LABEL)
+
+        print(f"[SelectCountry] Selected: '{selected}' saved to country.conf")
+        self.screen_manager.set_screen(SelectRegionScreen(self.screen_manager, self.screen_manager.hill))
+
+    def scroll_up(self):
+        if self.current_index > 0:
+            self.current_index -= 1
+        print(f"[SelectCountry] Scrolled up to index {self.current_index}")
+
+    def scroll_down(self):
+        if self.current_index < len(self.countries) - 1:
+            self.current_index += 1
+        print(f"[SelectCountry] Scrolled down to index {self.current_index}")
+
+    def draw(self, draw_obj):
+        img = self.bg_image.copy()
+        draw = ImageDraw.Draw(img)
+        font = _load_font(size=18)
+
+        if self.image_missing:
+            f2 = ImageFont.load_default()
+            msg = "images/select_resort.png not found"
+            w, h = draw.textsize(msg, font=f2)
+            draw.text(((device.width - w) // 2, (device.height - h) // 2), msg, fill="white", font=f2)
+
+        draw.text((73, 105), "Select Country", fill="white", font=font)
+        if self.countries:
+            if self.current_index > 0:
+                draw.text((73, 140), _truncate_config_label(self.countries[self.current_index - 1]), fill="gray", font=font)
+            draw.text((73, 175), _truncate_config_label(self.countries[self.current_index]), fill="white", font=font)
+            if self.current_index < len(self.countries) - 1:
+                draw.text((73, 207), _truncate_config_label(self.countries[self.current_index + 1]), fill="gray", font=font)
+
+        for btn in self.buttons:
+            btn.draw(draw)
+
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+        present(img) # do NOT call device.display(img) directly anymore
+
+
+class SelectRegionScreen(Screen):
+    def __init__(self, screen_manager, hill):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.hill = hill
+        self.meta = _load_resort_meta()
+        self.selected_country = _read_selected_country()
+        self.regions = get_regions(self.meta, self.selected_country)
+        self.current_index = 0
+
+        selected = _read_selected_region()
+        if self.regions:
+            selected_key = (selected or "").casefold()
+            for idx, region in enumerate(self.regions):
+                if region.casefold() == selected_key:
+                    self.current_index = idx
+                    break
+
         try:
-            _write_selected_resort_index(index)
+            self.bg_image = Image.open("images/select_resort.png").convert("RGB").resize((device.width, device.height))
+            self.image_missing = False
+        except FileNotFoundError:
+            print("[SelectRegion] images/select_resort.png not found. Using black background.")
+            self.bg_image = Image.new("RGB", (device.width, device.height), "black")
+            self.image_missing = True
+
+        self.add_button(
+            Button(270, 190, 300, 220, "Back", lambda: screen_manager.set_screen(SelectCountryScreen(screen_manager, screen_manager.hill)), visible=False)
+        )
+        self.add_button(Button(272, 108, 298, 135, "Up", self.scroll_up, visible=False))
+        self.add_button(Button(272, 140, 298, 165, "Down", self.scroll_down, visible=False))
+        self.add_button(Button(60, 175, 260, 200, "SelectCurrent", self.confirm_selection, visible=False))
+
+    def confirm_selection(self):
+        if not self.regions:
+            self.screen_manager.set_screen(ImageScreen("images/config.png", self.screen_manager, self.screen_manager.hill))
+            return
+        selected = self.regions[self.current_index]
+        _write_selected_region(selected)
+        print(f"[SelectRegion] Selected: '{selected}' saved to region.conf")
+        self.screen_manager.set_screen(SelectResortScreen(self.screen_manager, self.screen_manager.hill))
+
+    def scroll_up(self):
+        if self.current_index > 0:
+            self.current_index -= 1
+        print(f"[SelectRegion] Scrolled up to index {self.current_index}")
+
+    def scroll_down(self):
+        if self.current_index < len(self.regions) - 1:
+            self.current_index += 1
+        print(f"[SelectRegion] Scrolled down to index {self.current_index}")
+
+    def draw(self, draw_obj):
+        img = self.bg_image.copy()
+        draw = ImageDraw.Draw(img)
+        font = _load_font(size=18)
+
+        if self.image_missing:
+            f2 = ImageFont.load_default()
+            msg = "images/select_resort.png not found"
+            w, h = draw.textsize(msg, font=f2)
+            draw.text(((device.width - w) // 2, (device.height - h) // 2), msg, fill="white", font=f2)
+
+        draw.text((73, 105), "Select Region", fill="white", font=font)
+        if self.regions:
+            if self.current_index > 0:
+                draw.text((73, 140), _truncate_config_label(self.regions[self.current_index - 1]), fill="gray", font=font)
+            draw.text((73, 175), _truncate_config_label(self.regions[self.current_index]), fill="white", font=font)
+            if self.current_index < len(self.regions) - 1:
+                draw.text((73, 207), _truncate_config_label(self.regions[self.current_index + 1]), fill="gray", font=font)
+
+        for btn in self.buttons:
+            btn.draw(draw)
+
+        if hasattr(self.screen_manager, "overlay"):
+            self.screen_manager.overlay.update_base(img)
+
+
+        present(img) # do NOT call device.display(img) directly anymore
+
+
+class SelectResortScreen(Screen):
+    def __init__(self, screen_manager, hill):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.hill = hill
+        self.meta = _load_resort_meta()
+        self.selected_country = _read_selected_country()
+        self.selected_region = _read_selected_region()
+        self.skiHills = get_active_resorts(self.selected_country, self.selected_region, self.meta)
+        current_name = current_resort_name()
+        if current_name in self.skiHills:
+            self.current_index = self.skiHills.index(current_name)
+        else:
+            self.current_index = 0
+
+        try:
+            self.bg_image = Image.open("images/select_resort.png").convert("RGB").resize((device.width, device.height))
+            self.image_missing = False
+        except FileNotFoundError:
+            print("[SelectResort] images/select_resort.png not found. Using black background.")
+            self.bg_image = Image.new("RGB", (device.width, device.height), "black")
+            self.image_missing = True
+
+        self.add_button(
+            Button(270, 190, 300, 220, "Back", lambda: screen_manager.set_screen(SelectRegionScreen(screen_manager, screen_manager.hill)), visible=False)
+        )
+        self.add_button(Button(272, 108, 298, 135, "Up", self.scroll_up, visible=False))
+        self.add_button(Button(272, 140, 298, 165, "Down", self.scroll_down, visible=False))
+        self.add_button(Button(60, 175, 260, 200, "SelectCurrent", self.confirm_selection, visible=False))
+
+    def confirm_selection(self):
+        if not self.skiHills:
+            self.screen_manager.set_screen(ImageScreen("images/config.png", self.screen_manager, self.screen_manager.hill))
+            return
+        selected = self.skiHills[self.current_index]
+        try:
+            set_current_resort_by_name(selected)
+            names = get_resort_names(self.meta)
+            index = names.index(selected) if selected in names else -1
             print(f"[SelectResort] Selected: '{selected}' (index {index}) saved to skihill.conf")
             global hill
             reload_hill()
@@ -3546,11 +4000,12 @@ class SelectResortScreen(Screen):
             draw.text(((device.width - w) // 2, (device.height - h) // 2), msg, fill="white", font=f2)
 
         draw.text((73, 105), "Select Resort", fill="white", font=font)
-        if self.current_index > 0:
-            draw.text((73, 140), self.skiHills[self.current_index - 1], fill="gray", font=font)
-        draw.text((73, 175), self.skiHills[self.current_index], fill="white", font=font)
-        if self.current_index < len(self.skiHills) - 1:
-            draw.text((73, 207), self.skiHills[self.current_index + 1], fill="gray", font=font)
+        if self.skiHills:
+            if self.current_index > 0:
+                draw.text((73, 140), _truncate_config_label(self.skiHills[self.current_index - 1]), fill="gray", font=font)
+            draw.text((73, 175), _truncate_config_label(self.skiHills[self.current_index]), fill="white", font=font)
+            if self.current_index < len(self.skiHills) - 1:
+                draw.text((73, 207), _truncate_config_label(self.skiHills[self.current_index + 1]), fill="gray", font=font)
 
         for btn in self.buttons:
             btn.draw(draw)
@@ -3576,7 +4031,7 @@ class ConfigWiFiScreen(Screen):
             self.bg_image = Image.open("images/config_wifi.png").convert("RGB").resize((device.width, device.height))
             self.image_missing = False
         except FileNotFoundError:
-            print("⚠️ images/config_wifi.png not found. Using black background.")
+            print("Ã¢Å¡Â Ã¯Â¸Â images/config_wifi.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
             self.image_missing = True
 
@@ -3610,7 +4065,7 @@ class ConfigWiFiScreen(Screen):
     def save_and_exit(self):
         # Skip if no password entered
         if not self.password.strip():
-            print("[WiFi] No password entered — skipping WiFi update.")
+            print("[WiFi] No password entered Ã¢â‚¬â€ skipping WiFi update.")
             self.screen_manager.set_screen(
                 ImageScreen("images/config.png", self.screen_manager, self.screen_manager.hill)
             )
@@ -3673,14 +4128,14 @@ class AlarmScreen(Screen):
             self.bg_image = Image.open("images/misc.png").convert("RGB").resize((device.width, device.height))
             self.image_missing = False
         except FileNotFoundError:
-            print("⚠️ images/misc.png not found. Using black background.")
+            print("Ã¢Å¡Â Ã¯Â¸Â images/misc.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
             self.image_missing = True
 
         try:
             self.inactive_img = Image.open("images/InactiveButtonSmall.png").convert("RGB").resize((40, 20))
         except FileNotFoundError:
-            print("⚠️ images/InactiveButtonSmall.png not found. No inactive visual will be drawn.")
+            print("Ã¢Å¡Â Ã¯Â¸Â images/InactiveButtonSmall.png not found. No inactive visual will be drawn.")
             self.inactive_img = None
 
         self._load_config()
@@ -3759,28 +4214,28 @@ class AlarmScreen(Screen):
             self.hour = text
             self._save_from_fields()
         else:
-            self._show_error("Hour must be 0–23")
+            self._show_error("Hour must be 0Ã¢â‚¬â€œ23")
 
     def set_minute(self, text):
         if text.isdigit() and 0 <= int(text) <= 59:
             self.minute = text
             self._save_from_fields()
         else:
-            self._show_error("Minute must be 0–59")
+            self._show_error("Minute must be 0Ã¢â‚¬â€œ59")
 
     def set_triggered_snow(self, text):
         if text.isdigit() and 1 <= int(text) <= 100:
             self.triggered_snow = text
             self._save_from_fields()
         else:
-            self._show_error("Triggered snow must be 1–100")
+            self._show_error("Triggered snow must be 1Ã¢â‚¬â€œ100")
 
     def set_incremental_snow(self, text):
         if text.isdigit() and 1 <= int(text) <= 20:
             self.incremental_snow = text
             self._save_from_fields()
         else:
-            self._show_error("Incremental snow must be 1–20")
+            self._show_error("Incremental snow must be 1Ã¢â‚¬â€œ20")
 
     def draw(self, draw_obj):
         img = self.bg_image.copy()
@@ -3825,7 +4280,7 @@ class ImageScreen(Screen):
             self.bg_image = Image.open(image_file).convert("RGB").resize((device.width, device.height))
             self.image_missing = False
         except FileNotFoundError:
-            print(f"⚠️ {image_file} not found. Using black background.")
+            print(f"Ã¢Å¡Â Ã¯Â¸Â {image_file} not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
             self.image_missing = True
 
@@ -3835,7 +4290,7 @@ class ImageScreen(Screen):
 
         if image_file == "images/config.png":
             self.add_button(
-                Button(60, 140, 260, 165, "Select Resort", lambda: screen_manager.set_screen(SelectResortScreen(screen_manager, screen_manager.hill)))
+                Button(60, 140, 260, 165, "Select Resort", lambda: screen_manager.set_screen(SelectCountryScreen(screen_manager, screen_manager.hill)))
             )
             self.add_button(
                 Button(60, 175, 260, 200, "Config WiFi", lambda: screen_manager.set_screen(ConfigWiFiScreen(screen_manager, screen_manager.hill)))
@@ -3888,7 +4343,7 @@ class UpdateScreen(Screen):
             print("[Update] Newer version found. Updating...")
             if _is_systemd():
                 # Hand off to systemd transient unit; the UI will be stopped/restarted by systemd.
-                show_popup_message("Updating…", duration=3)
+                show_popup_message("UpdatingÃ¢â‚¬Â¦", duration=3)
                 ok = update(self.latest_ver)
                 if not ok:
                     show_popup_message("Update Failed", duration=3)
@@ -3918,7 +4373,7 @@ class UpdateScreen(Screen):
             self.bg_image = Image.open("images/update.png").convert("RGB").resize((device.width, device.height))
             self.image_missing = False
         except FileNotFoundError:
-            print("⚠️ images/update.png not found. Using black background.")
+            print("Ã¢Å¡Â Ã¯Â¸Â images/update.png not found. Using black background.")
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
             self.image_missing = True
 
@@ -3998,7 +4453,7 @@ def main():
     try:
         touch = XPT2046(spi_bus=0, spi_device=1, penirq_gpio=22)
     except Exception as e:
-        print(f"⚠️ Touch init failed: {e}")
+        print(f"Ã¢Å¡Â Ã¯Â¸Â Touch init failed: {e}")
         touch = None
     calibrator = TouchCalibrator()
 
@@ -4014,7 +4469,7 @@ def main():
         leds_rainbow_splash(duration_sec=3.0)  # fades in over the 2s splash, then turns LEDs off
 
     except FileNotFoundError:
-        print("⚠️ images/splashlogo.png not found; skipping splash.")
+        print("Ã¢Å¡Â Ã¯Â¸Â images/splashlogo.png not found; skipping splash.")
 
     try:
         calib_ok = False
@@ -4188,3 +4643,6 @@ if __name__ == "__main__":
 
     # normal program startup continues here ...
     _run_with_restart()
+
+
+
