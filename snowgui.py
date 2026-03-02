@@ -4623,7 +4623,7 @@ class UpdateScreen(Screen):
             print("[Update] Newer version found. Updating...")
             if _is_systemd():
                 # Hand off to systemd transient unit; the UI will be stopped/restarted by systemd.
-                show_popup_message("UpdatingÃ¢â‚¬Â¦", duration=3)
+                show_popup_message("Updating...", duration=3)
                 ok = update(self.latest_ver)
                 if not ok:
                     show_popup_message("Update Failed", duration=3)
