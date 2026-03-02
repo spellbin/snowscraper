@@ -12,6 +12,7 @@ import sys, logging
 import shlex
 import textwrap
 import tempfile
+from html import unescape
 from logging.handlers import RotatingFileHandler
 from functools import lru_cache
 from pathlib import Path
@@ -117,6 +118,68 @@ AVY_POINT_URL = "https://api.avalanche.ca/forecasts/en/products/point"
 AVY_HEADERS = {
     "User-Agent": "SnowGUI-Avy/0.1 (+https://www.snowscraper.ca)",
     "Accept": "application/json",
+}
+NWAC_API_BASE = "https://api.avalanche.org/v2/public"
+NWAC_CENTER_ID = "NWAC"
+CAIC_CENTER_ID = "CAIC"
+CAIC_PRODUCTS_LIMIT = 500
+NWAC_RESORTS = {
+    "Mt Baker": {
+        "zone_name": "West Slopes North",
+        "lat": 48.862,
+        "lon": -121.688,
+    },
+    "Crystal Mountain": {
+        "zone_id": "6",
+        "zone_name": "West Slopes South",
+        "lat": 46.935,
+        "lon": -121.474,
+    },
+    "Stevens Pass": {
+        "zone_id": "2",
+        "zone_name": "Stevens Pass",
+        "lat": 47.744,
+        "lon": -121.089,
+    },
+    "Alpental": {
+        "zone_id": "3",
+        "zone_name": "Snoqualmie Pass",
+        "lat": 47.445,
+        "lon": -121.424,
+    },
+    "Snoqualmie Pass": {
+        "zone_id": "3",
+        "zone_name": "Snoqualmie Pass",
+        "lat": 47.424,
+        "lon": -121.413,
+    },
+}
+CAIC_RESORTS = {
+    "Arapahoe Basin": {
+        "zone_name": "Ten Mile Range",
+    },
+    "Vail": {
+        "zone_name": "Gore Range",
+    },
+    "Beaver Creek": {
+        "zone_name": "Sawatch Mountains",
+    },
+    "Breckenridge": {
+        "zone_name": "Ten Mile Range",
+    },
+    "Keystone": {
+        "zone_name": "Ten Mile Range",
+    },
+    "Copper Mountain": {
+        "zone_name": "Ten Mile Range",
+    },
+}
+NWAC_DANGER_TEXT = {
+    1: "Low",
+    2: "Moderate",
+    3: "Considerable",
+    4: "High",
+    5: "Extreme",
 }
 
 
@@ -2086,6 +2149,155 @@ def _parse_iso_dt(dt_str):
         return None
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+_CENTER_PRODUCTS_CACHE = {}
+_CENTER_PRODUCTS_LOCK = threading.RLock()
+
+
+def _html_to_text(text: str) -> str:
+    if not text:
+        return ""
+    text = _TAG_RE.sub(" ", text)
+    text = unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _fetch_center_products(center_id: str, limit: Optional[int] = None):
+    params = {"avalanche_center_id": center_id, "type": "forecast"}
+    if limit:
+        params["limit"] = str(limit)
+    try:
+        resp = requests.get(NWAC_API_BASE + "/products", params=params, headers=AVY_HEADERS, timeout=20)
+    except Exception as e:
+        raise RuntimeError(f"{center_id} products fetch failed: {e}")
+    if resp.status_code != 200:
+        raise RuntimeError(f"{center_id} products HTTP {resp.status_code}: {resp.text[:200]}")
+    try:
+        payload = resp.json() if resp.content else []
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse {center_id} products JSON: {e}")
+    if not isinstance(payload, list):
+        raise RuntimeError(f"Unexpected {center_id} products payload type: {type(payload)!r}")
+    return payload
+
+
+def _get_center_products(center_id: str, limit: Optional[int] = None):
+    cache_key = (center_id, limit)
+    with _CENTER_PRODUCTS_LOCK:
+        if cache_key not in _CENTER_PRODUCTS_CACHE:
+            _CENTER_PRODUCTS_CACHE[cache_key] = _fetch_center_products(center_id, limit=limit)
+        return _CENTER_PRODUCTS_CACHE[cache_key]
+
+
+def _pick_latest_nwac_product_id(products, zone_id: str = None, zone_name: str = None) -> int:
+    zone_name_key = str(zone_name).strip().casefold() if zone_name is not None else None
+
+    def matches(product):
+        for zone in product.get("forecast_zone") or []:
+            if zone_id is not None and str(zone.get("zone_id")) == str(zone_id):
+                return True
+            if zone_name_key is not None:
+                for key in ("name", "zone_name", "display"):
+                    val = zone.get(key)
+                    if isinstance(val, str) and val.strip().casefold() == zone_name_key:
+                        return True
+                area = zone.get("area")
+                if isinstance(area, dict):
+                    for key in ("name", "display"):
+                        val = area.get(key)
+                        if isinstance(val, str) and val.strip().casefold() == zone_name_key:
+                            return True
+                label = zone.get("label")
+                if isinstance(label, str) and label.strip().casefold() == zone_name_key:
+                    return True
+        area = product.get("area")
+        if zone_name_key is not None and isinstance(area, dict):
+            for key in ("name", "display"):
+                val = area.get(key)
+                if isinstance(val, str) and val.strip().casefold() == zone_name_key:
+                    return True
+        if zone_name_key is not None:
+            for key in ("areaName", "zone_name", "zoneName", "region"):
+                val = product.get(key)
+                if isinstance(val, str) and val.strip().casefold() == zone_name_key:
+                    return True
+        return False
+
+    candidates = [product for product in products if isinstance(product, dict) and matches(product)]
+    if not candidates:
+        zone_desc = f"zone_id={zone_id}" if zone_id is not None else f"zone_name={zone_name}"
+        raise RuntimeError(f"No NWAC products found for {zone_desc}")
+
+    def published_dt(product):
+        return _parse_iso_dt(product.get("published_time")) or datetime.datetime.fromtimestamp(
+            0, tz=datetime.timezone.utc
+        )
+
+    candidates.sort(key=published_dt, reverse=True)
+    return int(candidates[0]["id"])
+
+
+def _danger_text(level):
+    if level is None:
+        return None
+    try:
+        return NWAC_DANGER_TEXT.get(int(level))
+    except Exception:
+        return None
+
+
+def _extract_nwac_danger(danger_list) -> dict:
+    danger = {"alpine": "N/A", "treeline": "N/A", "below_treeline": "N/A"}
+    if not isinstance(danger_list, list) or not danger_list:
+        return danger
+
+    current = None
+    for entry in danger_list:
+        if isinstance(entry, dict) and entry.get("valid_day") == "current":
+            current = entry
+            break
+    if current is None:
+        current = danger_list[0] if isinstance(danger_list[0], dict) else {}
+
+    for source_key, target_key in (
+        ("upper", "alpine"),
+        ("middle", "treeline"),
+        ("lower", "below_treeline"),
+    ):
+        text = _danger_text(current.get(source_key))
+        if text:
+            danger[target_key] = text
+    return danger
+
+
+def _pick_latest_caic_product_id(products, zone_name: str) -> int:
+    zone_target = str(zone_name).strip().casefold()
+    candidates = []
+    for product in products:
+        if not isinstance(product, dict):
+            continue
+        for zone in product.get("forecast_zone") or []:
+            if str(zone.get("name") or "").strip().casefold() == zone_target:
+                candidates.append(product)
+                break
+
+    if not candidates:
+        raise RuntimeError(f"No CAIC products found for zone_name={zone_name}")
+
+    newest_dt = None
+    newest = []
+    for product in candidates:
+        published = _parse_iso_dt(product.get("published_time"))
+        if newest_dt is None or (published and published > newest_dt):
+            newest_dt = published
+            newest = [product]
+        elif published == newest_dt:
+            newest.append(product)
+
+    newest.sort(key=lambda product: len(product.get("forecast_zone") or []))
+    return int(newest[0]["id"])
+
+
 # --- Avy mask assets (colored overlays for alpine/treeline/below TL) ---
 _AVY_ASSETS = None
 
@@ -2200,6 +2412,86 @@ def _fetch_point_forecast(lat: float, lon: float) -> dict:
         "summary": _extract_summary(product) or "No summary text available.",
         "issued": issued_fmt or "",
     }
+
+
+def _fetch_nwac_forecast(resort_name: str, nwac_meta: dict) -> dict:
+    zone_id = nwac_meta.get("zone_id")
+    zone_id = str(zone_id) if zone_id is not None else None
+    zone_name = str(nwac_meta["zone_name"])
+    products = _get_center_products(NWAC_CENTER_ID)
+    product_id = _pick_latest_nwac_product_id(products, zone_id=zone_id, zone_name=zone_name)
+    try:
+        resp = requests.get(f"{NWAC_API_BASE}/product/{product_id}", headers=AVY_HEADERS, timeout=20)
+    except Exception as e:
+        raise RuntimeError(f"NWAC forecast fetch failed for {resort_name}: {e}")
+    if resp.status_code != 200:
+        raise RuntimeError(f"NWAC forecast HTTP {resp.status_code}: {resp.text[:200]}")
+    try:
+        payload = resp.json() if resp.content else {}
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse NWAC forecast JSON: {e}")
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Unexpected NWAC product payload type: {type(payload)!r}")
+
+    issued_raw = payload.get("published_time") or payload.get("publishedTime")
+    issued_dt = _parse_iso_dt(issued_raw)
+    issued_fmt = issued_dt.strftime("%b %d %H:%M %Z") if issued_dt else (issued_raw or "")
+
+    summary_html = payload.get("bottom_line") or payload.get("hazard_discussion") or ""
+    return {
+        "title": f"{zone_name} Avalanche Forecast",
+        "region": zone_name,
+        "danger": _extract_nwac_danger(payload.get("danger") or []),
+        "summary": _html_to_text(summary_html) or "No summary text available.",
+        "issued": issued_fmt,
+    }
+
+
+def _fetch_caic_forecast(resort_name: str, caic_meta: dict) -> dict:
+    zone_name = str(caic_meta["zone_name"])
+    products = _get_center_products(CAIC_CENTER_ID, limit=CAIC_PRODUCTS_LIMIT)
+    product_id = _pick_latest_caic_product_id(products, zone_name)
+    try:
+        resp = requests.get(f"{NWAC_API_BASE}/product/{product_id}", headers=AVY_HEADERS, timeout=20)
+    except Exception as e:
+        raise RuntimeError(f"CAIC forecast fetch failed for {resort_name}: {e}")
+    if resp.status_code != 200:
+        raise RuntimeError(f"CAIC forecast HTTP {resp.status_code}: {resp.text[:200]}")
+    try:
+        payload = resp.json() if resp.content else {}
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse CAIC forecast JSON: {e}")
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Unexpected CAIC product payload type: {type(payload)!r}")
+
+    issued_raw = payload.get("published_time") or payload.get("publishedTime")
+    issued_dt = _parse_iso_dt(issued_raw)
+    issued_fmt = issued_dt.strftime("%b %d %H:%M %Z") if issued_dt else (issued_raw or "")
+
+    summary_html = payload.get("bottom_line") or payload.get("hazard_discussion") or ""
+    return {
+        "title": f"{zone_name} Avalanche Forecast",
+        "region": zone_name,
+        "danger": _extract_nwac_danger(payload.get("danger") or []),
+        "summary": _html_to_text(summary_html) or "No summary text available.",
+        "issued": issued_fmt,
+    }
+
+
+def _fetch_resort_forecast(resort_name: str, point) -> dict:
+    nwac_meta = NWAC_RESORTS.get(resort_name)
+    if nwac_meta:
+        return _fetch_nwac_forecast(resort_name, nwac_meta)
+
+    caic_meta = CAIC_RESORTS.get(resort_name)
+    if caic_meta:
+        return _fetch_caic_forecast(resort_name, caic_meta)
+
+    if not point:
+        raise RuntimeError(f"No lat/lon for '{resort_name}'. Update {RESORT_META_FILE}.")
+
+    lat, lon = point
+    return _fetch_point_forecast(lat, lon)
 
 
 # ----------------------------
@@ -3227,14 +3519,8 @@ class AvyForecastScreen(Screen):
         self.screen_manager.set_screen(AvyForecastScreen(self.screen_manager, new_hill))
 
     def _load_forecast(self):
-        if not self.point:
-            self.error = f"No lat/lon for '{self.resort_name}'. Update {RESORT_META_FILE}."
-            self.loading = False
-            self.screen_manager.redraw()
-            return
-        lat, lon = self.point
         try:
-            self.forecast = _fetch_point_forecast(lat, lon)
+            self.forecast = _fetch_resort_forecast(self.resort_name, self.point)
             self._set_summary_lines()
         except Exception as e:
             self.error = str(e)
@@ -3435,14 +3721,8 @@ class AvyMaskScreen(Screen):
         self.screen_manager.set_screen(AvyMaskScreen(self.screen_manager, new_hill))
 
     def _load_forecast(self):
-        if not self.point:
-            self.error = f"No lat/lon for '{self.resort_name}'. Update {RESORT_META_FILE}."
-            self.loading = False
-            self.screen_manager.redraw()
-            return
-        lat, lon = self.point
         try:
-            self.forecast = _fetch_point_forecast(lat, lon)
+            self.forecast = _fetch_resort_forecast(self.resort_name, self.point)
         except Exception as e:
             self.error = str(e)
         finally:

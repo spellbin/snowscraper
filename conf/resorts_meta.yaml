@@ -71,6 +71,34 @@
   region: "WA"
   country: "US"
 
+- name: "Crystal Mountain"
+  slug: "Crystal_Mountain"
+  lat: 46.935
+  lon: -121.474
+  region: "WA"
+  country: "US"
+
+- name: "Stevens Pass"
+  slug: "Stevens_Pass"
+  lat: 47.744
+  lon: -121.089
+  region: "WA"
+  country: "US"
+
+- name: "Alpental"
+  slug: "Alpental"
+  lat: 47.445
+  lon: -121.424
+  region: "WA"
+  country: "US"
+
+- name: "Snoqualmie Pass"
+  slug: "Snoqualmie_Pass"
+  lat: 47.424
+  lon: -121.413
+  region: "WA"
+  country: "US"
+
 - name: "Powder King"
   slug: "Powder_King"
   lat: 55.356
@@ -195,4 +223,39 @@
   lat: 39.197
   lon: -120.235
   region: "CA"
+  country: "US"
+
+- name: "Vail"
+  slug: "Vail"
+  lat: 39.64
+  lon: -106.374
+  region: "CO"
+  country: "US"
+
+- name: "Keystone"
+  slug: "Keystone"
+  lat: 39.605
+  lon: -105.943
+  region: "CO"
+  country: "US"
+
+- name: "Breckenridge"
+  slug: "Breckenridge"
+  lat: 39.481
+  lon: -106.038
+  region: "CO"
+  country: "US"
+
+- name: "Beaver Creek"
+  slug: "Beaver_Creek"
+  lat: 39.604
+  lon: -106.517
+  region: "CO"
+  country: "US"
+
+- name: "Copper Mountain"
+  slug: "Copper_Mountain"
+  lat: 39.502
+  lon: -106.151
+  region: "CO"
   country: "US"
