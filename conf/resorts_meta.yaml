@@ -259,3 +259,10 @@
   lon: -106.151
   region: "CO"
   country: "US"
+
+- name: "Avoriaz"
+  slug: "Avoriaz"
+  lat: 46.193
+  lon: 6.77
+  region: "Auvergne-Rhone-Alpes"
+  country: "FR"
