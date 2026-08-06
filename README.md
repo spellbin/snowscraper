@@ -141,12 +141,40 @@ You can also set SNOWGUI_LED_DEMO=1 in the environment.
 Project Structure
 
   .
-  |-- snowgui.py               # Main GUI + scraper
+  |-- snowgui.py               # Stable entry point, display, screens, main loop
+  |-- snowscraper_app/         # Cohesive application subsystems
+  |   |-- alarms.py            # Alarm state and GPIO buzzer playback
+  |   |-- avalanche.py         # AvCan/NWAC/CAIC forecast normalization
+  |   |-- brightness.py        # Shared LCD and LED brightness profiles
+  |   |-- leds.py              # WS2812 colors, breathing, sparkle, demo mode
+  |   |-- resorts.py           # Resort filters, snow JSON, rolling history
+  |   |-- storage.py           # Atomic text and JSON persistence
+  |   `-- system.py            # Journald, heartbeat, GitHub, systemd updates
   |-- setup_service.sh         # Create a systemd service for autoboot
   |-- calibrate_touchscreen.py # Standalone calibration tool
+  |-- tests/                   # Hardware-free characterization tests
   |-- conf/                    # Config + calibration data
   |-- logs/                    # Log output
   |-- images/                  # UI image assets (mainmenu.png, splashlogo.png, etc.)
+
+Where to make changes:
+
+- Change screen layout, touch targets, transitions, or the main fetch loop in
+  snowgui.py.
+- Change an upstream avalanche provider or normalized forecast fields in
+  snowscraper_app/avalanche.py.
+- Change resort grouping, selection persistence, snow JSON parsing, or local
+  history in snowscraper_app/resorts.py.
+- Change ring colors or animation timing in snowscraper_app/leds.py.
+- Change timed/incremental alarm rules or the melody in
+  snowscraper_app/alarms.py.
+- Change privileged appliance behavior such as heartbeat or self-update in
+  snowscraper_app/system.py.
+
+Run the hardware-free checks after editing:
+
+  python3 -m unittest discover -s tests -v
+  python3 -m py_compile snowgui.py snowscraper_app/*.py
 
 -----------------------------------------------------------------------
 
