@@ -26,6 +26,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from .health import health_reporter
+
 
 REPO_URL = "https://github.com/spellbin/snowscraper.git"
 LOCAL_REPO_PATH = "/home/pi/snowscraper"
@@ -422,6 +424,10 @@ def _ensure_heartbeat_symlink() -> bool:
 
 
 def heartbeat():
+    # Remote reporting is a separate daemon worker so a slow backend request can
+    # never delay the ten-second local watchdog file update. Its anonymous ID and
+    # opt-out preference are owned locally by the reporter, not by systemd.
+    health_reporter.start(app_version=get_local_version())
     while True:
         ts = str(time.time())
 

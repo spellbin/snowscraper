@@ -6,6 +6,7 @@ non-visual concerns live in ``snowscraper_app``:
 * ``alarms`` owns alarm persistence and GPIO buzzer playback;
 * ``avalanche`` normalizes Avalanche Canada, NWAC, and CAIC forecasts;
 * ``brightness`` owns the shared LCD/LED brightness profile;
+* ``health`` owns optional anonymous backend reporting and its local preference;
 * ``leds`` owns WS2812 rendering and worker threads;
 * ``resorts`` owns resort selection and snow-history persistence;
 * ``storage`` provides atomic configuration writes; and
@@ -121,6 +122,7 @@ from snowscraper_app.system import (
     heartbeat,
     update,
 )
+from snowscraper_app.health import health_reporter
 from snowscraper_app.avalanche import (
     AVY_HEADERS,
     AVY_POINT_URL,
@@ -2696,6 +2698,73 @@ class AlarmScreen(Screen):
         present(img) # do NOT call device.display(img) directly anymore
 
 
+class AnonymousHealthScreen(Screen):
+    """Customer-facing control for optional pseudonymous health reporting.
+
+    The preference is entirely local. Turning sharing off stops future reports
+    immediately and does not change snow data, alarms, LEDs, updates, or the
+    disk-based watchdog heartbeat.
+    """
+
+    def __init__(self, screen_manager, hill):
+        super().__init__()
+        self.screen_manager = screen_manager
+        self.hill = hill
+        try:
+            self.bg_image = Image.open("images/config.png").convert("RGB").resize(
+                (device.width, device.height)
+            )
+            self.image_missing = False
+        except FileNotFoundError:
+            self.bg_image = Image.new("RGB", (device.width, device.height), "black")
+            self.image_missing = True
+
+        # The complete centre bar is a generous 200×32 px touch target. The
+        # lower-right artwork retains the same Back target as other config pages.
+        self.add_button(Button(60, 132, 260, 168, "Toggle anonymous health", self._toggle))
+        self.add_button(Button(
+            270, 190, 300, 220,
+            "Back",
+            lambda: screen_manager.set_screen(
+                ImageScreen("images/config.png", screen_manager, screen_manager.hill)
+            ),
+        ))
+
+    def _toggle(self):
+        enabled = not health_reporter.reporting_enabled
+        saved = health_reporter.set_reporting_enabled(enabled)
+        if saved:
+            state = "on" if enabled else "off"
+            show_popup_message(f"Anonymous health: {state}", duration=1.5)
+        else:
+            show_popup_message("Could not save preference", duration=2)
+        self.screen_manager.set_screen(
+            AnonymousHealthScreen(self.screen_manager, self.screen_manager.hill)
+        )
+
+    def draw(self, draw_obj):
+        img = self.bg_image.copy()
+        draw = ImageDraw.Draw(img)
+        title_font = _load_font(size=17)
+        body_font = _load_font(size=14)
+        detail_font = _load_font(size=12)
+        enabled = health_reporter.reporting_enabled
+
+        draw.text((73, 105), "Anonymous Health", fill="white", font=title_font)
+        draw.text(
+            (73, 140),
+            f"Sharing: {'ON' if enabled else 'OFF'}",
+            fill="#8BE28B" if enabled else "#D8D8D8",
+            font=body_font,
+        )
+        draw.text((73, 175), "No hostname or account", fill="white", font=detail_font)
+        draw.text((73, 207), "Tap sharing to change", fill="white", font=detail_font)
+
+        if self.image_missing:
+            draw.text((8, 8), "config.png missing", fill="white", font=detail_font)
+        present(img)
+
+
 class ImageScreen(Screen):
     """Static image-backed submenu with invisible touch targets over its artwork."""
 
@@ -2724,7 +2793,10 @@ class ImageScreen(Screen):
                 Button(60, 175, 260, 200, "Config WiFi", lambda: screen_manager.set_screen(ConfigWiFiScreen(screen_manager, screen_manager.hill)))
             )
             self.add_button(
-                Button(60, 210, 260, 230, "Set Alarm", lambda: screen_manager.set_screen(AlarmScreen(screen_manager, screen_manager.hill)))
+                Button(60, 202, 160, 232, "Set Alarm", lambda: screen_manager.set_screen(AlarmScreen(screen_manager, screen_manager.hill)))
+            )
+            self.add_button(
+                Button(160, 202, 260, 232, "Privacy", lambda: screen_manager.set_screen(AnonymousHealthScreen(screen_manager, screen_manager.hill)))
             )
 
     def draw(self, draw_obj):
@@ -2736,7 +2808,11 @@ class ImageScreen(Screen):
             draw.text((73, 105), "Configuration", fill="white", font=font)
             draw.text((73, 140), "Select Resort", fill="white", font=font)
             draw.text((73, 175), "Config Wifi", fill="white", font=font)
-            draw.text((73, 207), "Set Alarm", fill="white", font=font)
+            # Split the final artwork slot so existing alarm access remains in
+            # place while the optional reporting control is easy to discover.
+            small_font = _load_font(size=14)
+            draw.text((73, 207), "Alarm", fill="white", font=small_font)
+            draw.text((168, 207), "Privacy", fill="white", font=small_font)
 
         if self.image_missing:
             font2 = ImageFont.load_default()

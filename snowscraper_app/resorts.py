@@ -33,6 +33,7 @@ from .avalanche import (
     _normalize_resort_meta,
 )
 from .storage import atomic_write_json, atomic_write_text
+from .health import health_reporter
 
 
 SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.json"
@@ -555,6 +556,9 @@ class skiHill:
         self.freshness = None
         self.source = None
         self.scraper_disabled = False
+        # Resort selection is useful health context even before the first Snow
+        # API request completes. This does not trigger network I/O.
+        health_reporter.set_selected_resort(name)
 
     def getSnow(self):
         if DEV_MODE:
@@ -565,7 +569,13 @@ class skiHill:
             self.baseSnow = 120
             return
         print(f"[getSnow] {self.name}")
-        data = _load_resort_json(self.name)
+        try:
+            data = _load_resort_json(self.name)
+        except Exception as exc:
+            # Retain the previous readings exactly as before, while making the
+            # current fetch failure visible to the remote health monitor.
+            health_reporter.record_snow_fetch_failure(exc, self.name)
+            raise
         cur = data["current"]
         self.url = snow_api_url("current", self.name)
         self.newSnow = _optional_int(cur.get("newSnow"))
@@ -575,4 +585,5 @@ class skiHill:
         self.freshness = data.get("freshness") if isinstance(data.get("freshness"), dict) else None
         self.source = data.get("source") if isinstance(data.get("source"), dict) else None
         self.scraper_disabled = bool(data.get("scraper_disabled"))
+        health_reporter.record_snow_fetch_success(self.name)
         log_snow_data(self)

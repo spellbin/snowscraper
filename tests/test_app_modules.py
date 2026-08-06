@@ -15,7 +15,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from snowscraper_app import alarms, avalanche, brightness, resorts, storage, system
+from snowscraper_app import alarms, avalanche, brightness, health, resorts, storage, system
 
 
 class StorageTests(unittest.TestCase):
@@ -351,12 +351,16 @@ class ResortSnowApiTests(unittest.TestCase):
         hill = resorts.skiHill("Sun Peaks", "", 8, 20, 100)
         with mock.patch.object(resorts, "_load_resort_json", return_value=payload):
             with mock.patch.object(resorts, "log_snow_data"):
-                hill.getSnow()
+                with mock.patch.object(
+                    resorts.health_reporter, "record_snow_fetch_success"
+                ) as report_success:
+                    hill.getSnow()
         self.assertIsNone(hill.newSnow)
         self.assertEqual(hill.daySnow, 0)
         self.assertIsNone(hill.weekSnow)
         self.assertEqual(hill.baseSnow, 120)
         self.assertEqual(hill.freshness, {"level": "suspect"})
+        report_success.assert_called_once_with("Sun Peaks")
 
     def test_current_request_failure_keeps_last_successful_values(self):
         hill = resorts.skiHill("Sun Peaks", "", 8, 20, 100)
@@ -366,12 +370,17 @@ class ResortSnowApiTests(unittest.TestCase):
             "_load_resort_json",
             side_effect=resorts.SnowApiError("network down"),
         ):
-            with self.assertRaises(resorts.SnowApiError):
-                hill.getSnow()
+            with mock.patch.object(
+                resorts.health_reporter, "record_snow_fetch_failure"
+            ) as report_failure:
+                with self.assertRaises(resorts.SnowApiError):
+                    hill.getSnow()
         self.assertEqual(
             (hill.newSnow, hill.daySnow, hill.weekSnow, hill.baseSnow),
             (8, 7, 20, 100),
         )
+        report_failure.assert_called_once()
+        self.assertEqual(report_failure.call_args.args[1], "Sun Peaks")
 
     def test_history_requires_the_contract_history_list(self):
         with mock.patch.object(
@@ -385,6 +394,79 @@ class ResortSnowApiTests(unittest.TestCase):
         with mock.patch.object(resorts, "_snow_api_get", return_value={"history": None}):
             with self.assertRaises(resorts.SnowApiError):
                 resorts.fetch_snow_history("Sun Peaks")
+
+
+class RemoteHealthReporterTests(unittest.TestCase):
+    """Anonymous reporting remains persistent, optional, minimal, and fail-soft."""
+
+    def test_reporter_generates_persistent_id_and_sends_minimal_payload(self):
+        env = {
+            "SNOWSCRAPER_HEARTBEAT_URL": "https://backend.example/api/v1/snowscraper/heartbeat",
+            "SNOWSCRAPER_HEARTBEAT_TIMEOUT_SECONDS": "4.5",
+        }
+        response = mock.Mock()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "health.json"
+            with mock.patch.dict(health.os.environ, env, clear=True):
+                reporter = health.RemoteHealthReporter(state_path=state_path)
+            reporter.set_app_version("2.3.0")
+            reporter.record_snow_fetch_success("Sun Peaks")
+
+            with mock.patch.object(health.requests, "post", return_value=response) as post:
+                self.assertTrue(reporter.send_once())
+
+            payload = post.call_args.kwargs["json"]
+            self.assertRegex(payload["scraper_id"], r"^ss_[0-9a-f]{32}$")
+            self.assertNotIn("hostname", payload)
+            self.assertEqual(payload["app_version"], "2.3.0")
+            self.assertEqual(payload["selected_resort"], "Sun Peaks")
+            self.assertIsNotNone(payload["last_snow_fetch_at"])
+            self.assertIsNone(payload["last_error"])
+            self.assertIsInstance(payload["uptime_seconds"], int)
+            self.assertTrue(payload["reported_at"].endswith("Z"))
+            self.assertEqual(post.call_args.kwargs["timeout"], 4.5)
+            self.assertNotIn("Authorization", post.call_args.kwargs["headers"])
+
+            # Recreating the reporter simulates a git update/restart. The
+            # pseudonymous identity must survive through the ignored state file.
+            second = health.RemoteHealthReporter(state_path=state_path)
+            self.assertEqual(second.scraper_id, reporter.scraper_id)
+            self.assertTrue(second.reporting_enabled)
+        response.raise_for_status.assert_called_once_with()
+
+    def test_fetch_failure_is_reported_without_erasing_last_success_time(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reporter = health.RemoteHealthReporter(
+                state_path=Path(temp_dir) / "health.json"
+            )
+            reporter.record_snow_fetch_success("Whistler")
+            successful_at = reporter.payload()["last_snow_fetch_at"]
+            reporter.record_snow_fetch_failure("timeout", "Whistler")
+            payload = reporter.payload()
+            self.assertEqual(payload["last_snow_fetch_at"], successful_at)
+            self.assertEqual(payload["last_error"], "timeout")
+
+    def test_customer_opt_out_persists_and_stops_network_reporting(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "health.json"
+            reporter = health.RemoteHealthReporter(state_path=state_path)
+            self.assertTrue(reporter.set_reporting_enabled(False))
+            with mock.patch.object(health.requests, "post") as post:
+                self.assertFalse(reporter.send_once())
+            post.assert_not_called()
+
+            restarted = health.RemoteHealthReporter(state_path=state_path)
+            self.assertFalse(restarted.reporting_enabled)
+            self.assertEqual(restarted.scraper_id, reporter.scraper_id)
+
+    def test_malformed_state_is_replaced_without_blocking_startup(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / "health.json"
+            state_path.write_text("not-json", encoding="utf-8")
+            reporter = health.RemoteHealthReporter(state_path=state_path)
+            persisted = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted["scraper_id"], reporter.scraper_id)
+            self.assertTrue(persisted["reporting_enabled"])
 
 
 class AlarmPersistenceTests(unittest.TestCase):

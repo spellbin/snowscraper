@@ -124,6 +124,35 @@ Environment variables:
 - SNOW_API_TIMEOUT_SECONDS
   Positive request timeout in seconds. Defaults to 10.
 
+Remote health monitoring is anonymous, optional, and one-way. On first launch,
+the Pi generates a random installation ID in gitignored `conf/health.json` and
+reports application version, selected resort, process uptime, last successful
+Snow API fetch, and current fetch error. It does not report a hostname, account,
+claim, token, or backend configuration identity. Git updates preserve the local
+ID and preference.
+
+Reporting defaults on for existing installations that receive the update. A
+customer can stop or resume it at any time on the touchscreen under
+Configuration -> Privacy -> Anonymous Health. This does not affect any other
+appliance function.
+
+Optional overrides:
+
+- SNOWSCRAPER_HEARTBEAT_URL
+  Ingest endpoint. Defaults to
+  https://plow.snowscraper.ca/api/v1/snowscraper/heartbeat.
+
+- SNOWSCRAPER_HEARTBEAT_INTERVAL_SECONDS
+  Reporting cadence. Defaults to 60 seconds; the backend marks a reporter stale
+  after 180 seconds by default.
+
+- SNOWSCRAPER_HEARTBEAT_TIMEOUT_SECONDS
+  Request timeout. Defaults to 10 seconds.
+
+- SNOWSCRAPER_HEALTH_REPORTING
+  Initial default used only when `conf/health.json` does not exist. Set to 0,
+  false, no, off, or disabled to create a new installation opted out.
+
 - logs/snow_log.json
   Rolling daily snowfall logs per resort.
 
@@ -154,6 +183,7 @@ Project Structure
   |   |-- alarms.py            # Alarm state and GPIO buzzer playback
   |   |-- avalanche.py         # AvCan/NWAC/CAIC forecast normalization
   |   |-- brightness.py        # Shared LCD and LED brightness profiles
+  |   |-- health.py            # One-way remote health heartbeat reporter
   |   |-- leds.py              # WS2812 colors, breathing, sparkle, demo mode
   |   |-- resorts.py           # Snow API client, resort filters, local log
   |   |-- storage.py           # Atomic text and JSON persistence
@@ -173,6 +203,8 @@ Where to make changes:
   snowscraper_app/avalanche.py.
 - Change Snow API access, resort grouping, selection persistence, or local
   observation logging in snowscraper_app/resorts.py.
+- Change the remote backend health payload, cadence, or fail-soft reporting
+  behavior in snowscraper_app/health.py.
 - Change ring colors or animation timing in snowscraper_app/leds.py.
 - Change timed/incremental alarm rules or the melody in
   snowscraper_app/alarms.py.
