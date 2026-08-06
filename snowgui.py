@@ -8,6 +8,7 @@ non-visual concerns live in ``snowscraper_app``:
 * ``brightness`` owns the shared LCD/LED brightness profile;
 * ``health`` owns optional anonymous backend reporting and its local preference;
 * ``leds`` owns WS2812 rendering and worker threads;
+* ``local_scrapers`` owns optional user-created BeautifulSoup resort modules;
 * ``resorts`` owns resort selection and snow-history persistence;
 * ``storage`` provides atomic configuration writes; and
 * ``system`` owns journald, heartbeat, release, and systemd integration.

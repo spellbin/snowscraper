@@ -1,0 +1,31 @@
+# SnowScraper local module settings.
+# The folder name is the module ID. Enable/disable state is controlled by the
+# separate ENABLED marker, so this documented file is never rewritten by the CLI.
+
+[local_scraper]
+# Exact name shown in the touchscreen resort picker. To override an existing
+# resort, copy its capitalization and punctuation exactly. A new name creates a
+# local-only resort when this module is enabled.
+resort_name = {{RESORT_NAME}}
+
+# Public HTML page containing the snow report. The framework downloads this page
+# and gives scraper.py a BeautifulSoup object; custom code should not call requests.
+source_url = {{SOURCE_URL}}
+
+# Used to place a local-only resort in the Country / Region picker. These may be
+# blank when overriding a resort already supplied by the Snow API.
+country = {{COUNTRY}}
+region = {{REGION}}
+
+# Optional decimal coordinates. Supplying these enables avalanche point lookup
+# for a local-only resort. Example: 50.1163 and -122.9574.
+latitude = {{LATITUDE}}
+longitude = {{LONGITUDE}}
+
+# HTTP/read timeout for the child scraper process. Allowed range: 3..60 seconds.
+timeout_seconds = 20
+
+# Recommended for an existing resort: if custom selectors break, use the normal
+# Snow API result. Set false for a resort that exists only in this local module.
+fallback_to_snow_api = {{FALLBACK_TO_SNOW_API}}
+

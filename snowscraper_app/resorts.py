@@ -12,10 +12,11 @@ Selection files continue to store the same values:
 * region.conf stores the selected region label.
 
 The Snow API is the primary source for the resort universe, current readings,
-and 30-day history. The bundled metadata remains an offline-only fallback so a
-device can still render its resort picker when the network is unavailable. The
-loader retains all legacy selection aliases, including the historical All
-Resorts region label and case-insensitive Other buckets.
+and 30-day history. Enabled user-created BeautifulSoup modules can override an
+existing resort or append a local-only resort without modifying this file. The
+bundled metadata remains an offline fallback. The loader retains all legacy
+selection aliases, including the historical All Resorts region label and
+case-insensitive Other buckets.
 """
 
 import datetime
@@ -34,6 +35,12 @@ from .avalanche import (
 )
 from .storage import atomic_write_json, atomic_write_text
 from .health import health_reporter
+from .local_scrapers import (
+    LocalScraperError,
+    find_enabled_module,
+    merge_enabled_module_metadata,
+    run_local_scraper,
+)
 
 
 SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.json"
@@ -186,7 +193,7 @@ def load_resort_meta(force_refresh: bool = False) -> dict:
         now = time.monotonic()
         if not force_refresh and isinstance(_meta_cache, dict):
             if now < _meta_retry_at:
-                return _meta_cache
+                return merge_enabled_module_metadata(_meta_cache)
 
         try:
             payload = _snow_api_get("resorts/meta")
@@ -196,21 +203,23 @@ def load_resort_meta(force_refresh: bool = False) -> dict:
             _meta_cache = normalized
             _meta_cache_source = "api"
             _meta_retry_at = now + API_META_CACHE_SECONDS
-            return _meta_cache
+            return merge_enabled_module_metadata(_meta_cache)
         except SnowApiError as exc:
             print(f"[Resorts] {exc}; using bundled metadata fallback.")
             if _meta_cache_source == "api" and isinstance(_meta_cache, dict):
                 _meta_retry_at = now + OFFLINE_META_RETRY_SECONDS
-                return _meta_cache
+                return merge_enabled_module_metadata(_meta_cache)
             fallback = _load_local_resort_meta()
             if fallback:
                 _meta_cache = fallback
                 _meta_cache_source = "offline"
                 _meta_retry_at = now + OFFLINE_META_RETRY_SECONDS
-                return _meta_cache
+                return merge_enabled_module_metadata(_meta_cache)
             if isinstance(_meta_cache, dict):
-                return _meta_cache
-            return {}
+                return merge_enabled_module_metadata(_meta_cache)
+            # A local-only module must remain selectable even if both the Snow
+            # API and the bundled metadata are unavailable.
+            return merge_enabled_module_metadata({})
 
 
 # Historical private name retained for snowgui compatibility.
@@ -457,12 +466,24 @@ def _resort_slug(name: str) -> str:
 
 
 def fetch_current_snow(name: str) -> dict:
-    """Fetch and validate the Snow API current endpoint for one resort.
+    """Fetch a local module override or the Snow API current endpoint.
 
-    Transport and malformed-payload failures raise SnowApiError so callers can
-    retain the last successful reading. A valid API null remains None and is
-    handled separately from a request failure.
+    Local modules run in a bounded child process. Their manifest defaults to a
+    Snow API fallback so a beginner's broken selector does not take an existing
+    resort offline. A local-only module can disable that fallback. Transport and
+    malformed-payload failures still raise so callers retain the last readings.
     """
+    module = find_enabled_module(name)
+    if module is not None:
+        try:
+            print(f"[LocalScraper] Running '{module.module_id}' for {name}")
+            return run_local_scraper(module)
+        except LocalScraperError as exc:
+            if not module.fallback_to_snow_api:
+                raise
+            print(
+                f"[LocalScraper] {exc}; falling back to the Snow API for {name}."
+            )
     payload = _snow_api_get("current", name)
     if not isinstance(payload.get("current"), dict):
         raise SnowApiError(f"Snow API current payload is malformed for {name}")
@@ -470,8 +491,27 @@ def fetch_current_snow(name: str) -> dict:
 
 
 def fetch_snow_history(name: str) -> dict:
-    """Fetch and validate the Snow API 30-day history for one resort."""
-    payload = _snow_api_get("history30", name)
+    """Fetch Snow API history, falling back to the Pi log for a local resort."""
+    try:
+        payload = _snow_api_get("history30", name)
+    except SnowApiError:
+        # A local-only resort has no server history endpoint. Successful module
+        # readings already enter the ordinary daily log, so reuse that data for
+        # the existing chart instead of creating a second history format.
+        module = find_enabled_module(name)
+        if module is None:
+            raise
+        try:
+            with open(SNOW_LOG_FILE, "r", encoding="utf-8") as history_file:
+                local_log = json.load(history_file)
+        except (OSError, ValueError, TypeError):
+            local_log = {}
+        resort_log = local_log.get(name) if isinstance(local_log, dict) else None
+        history = resort_log.get("history") if isinstance(resort_log, dict) else []
+        return {
+            "history": history if isinstance(history, list) else [],
+            "source": {"provider": "local_log", "module": module.module_id},
+        }
     if not isinstance(payload.get("history"), list):
         raise SnowApiError(f"Snow API history payload is malformed for {name}")
     return payload
@@ -577,13 +617,14 @@ class skiHill:
             health_reporter.record_snow_fetch_failure(exc, self.name)
             raise
         cur = data["current"]
-        self.url = snow_api_url("current", self.name)
+        source = data.get("source") if isinstance(data.get("source"), dict) else None
+        self.url = str(source.get("url")) if source and source.get("url") else snow_api_url("current", self.name)
         self.newSnow = _optional_int(cur.get("newSnow"))
         self.daySnow = _optional_int(cur.get("daySnow"))
         self.weekSnow = _optional_int(cur.get("weekSnow"))
         self.baseSnow = _optional_int(cur.get("baseSnow"))
         self.freshness = data.get("freshness") if isinstance(data.get("freshness"), dict) else None
-        self.source = data.get("source") if isinstance(data.get("source"), dict) else None
+        self.source = source
         self.scraper_disabled = bool(data.get("scraper_disabled"))
         health_reporter.record_snow_fetch_success(self.name)
         log_snow_data(self)

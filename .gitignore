@@ -2,3 +2,8 @@
 conf/skihill.conf
 conf/alarm.conf
 conf/health.json
+conf/local_scrapers/
+
+# --- Python runtime cache ---
+__pycache__/
+*.py[cod]
