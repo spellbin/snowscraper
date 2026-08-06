@@ -1,4 +1,4 @@
-"""Resort selection, public snow JSON loading, and local snow history.
+"""Resort selection, Snow API access, and local observation history.
 
 This module owns the resort catalog view used by configuration screens and the
 small skiHill data object consumed by the GUI. It deliberately does not own the
@@ -11,19 +11,27 @@ Selection files continue to store the same values:
 * country.conf stores the selected country label; and
 * region.conf stores the selected region label.
 
-The loader also retains all legacy aliases and fallback behavior, including the
-historical All Resorts region label and case-insensitive Other buckets.
+The Snow API is the primary source for the resort universe, current readings,
+and 30-day history. The bundled metadata remains an offline-only fallback so a
+device can still render its resort picker when the network is unavailable. The
+loader retains all legacy selection aliases, including the historical All
+Resorts region label and case-insensitive Other buckets.
 """
 
 import datetime
 import json
 import os
-import re
+import threading
+import time
 from typing import List, Optional
+from urllib.parse import quote
 
 import requests
 
-from .avalanche import _load_resort_meta
+from .avalanche import (
+    _load_resort_meta as _load_local_resort_meta,
+    _normalize_resort_meta,
+)
 from .storage import atomic_write_json, atomic_write_text
 
 
@@ -35,6 +43,24 @@ ALL_REGIONS_LABEL = "All Regions"
 ALL_RESORTS_LABEL = "All Resorts"
 OTHER_COUNTRY_LABEL = "Other"
 OTHER_REGION_LABEL = "Other"
+DEFAULT_SNOW_API_BASE_URL = "https://plow.snowscraper.ca/api/snow"
+DEFAULT_SNOW_API_TIMEOUT_SECONDS = 10.0
+API_META_CACHE_SECONDS = 60.0 * 60.0
+OFFLINE_META_RETRY_SECONDS = 60.0
+SNOW_API_USER_AGENT = "SnowGUI/2.3.0"
+
+
+class SnowApiError(RuntimeError):
+    """Raised when Snow API transport or payload validation fails."""
+
+
+# Successful API metadata is cached for an hour. If a refresh fails, retain the
+# last full API universe and retry shortly; never shrink an online device back
+# to the smaller bundled fallback after it has already loaded canonical data.
+_meta_cache = None
+_meta_cache_source = None
+_meta_retry_at = 0.0
+_meta_cache_lock = threading.RLock()
 
 # This mirrors snowgui.DEV_MODE.  The main loop skips live getSnow calls while
 # development mode is active, and the guard here preserves skiHill.getSnow's
@@ -64,6 +90,130 @@ def _safe_int(value, default=0):
         return int(digits) if digits else default
     except Exception:
         return default
+
+
+def _optional_int(value):
+    """Coerce an API measurement to int while preserving unavailable as None.
+
+    The Snow API contract distinguishes a verified zero from an absent value.
+    This helper must therefore never use truthiness or a zero default.
+    """
+    if value is None:
+        return None
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _snow_api_base_url() -> str:
+    """Return the configurable Snow API root without a trailing slash."""
+    configured = os.getenv("SNOW_API_BASE_URL", DEFAULT_SNOW_API_BASE_URL).strip()
+    return (configured or DEFAULT_SNOW_API_BASE_URL).rstrip("/")
+
+
+def _snow_api_timeout() -> float:
+    """Read a positive request timeout, falling back safely on bad config."""
+    try:
+        timeout = float(
+            os.getenv(
+                "SNOW_API_TIMEOUT_SECONDS",
+                str(DEFAULT_SNOW_API_TIMEOUT_SECONDS),
+            )
+        )
+        return timeout if timeout > 0 else DEFAULT_SNOW_API_TIMEOUT_SECONDS
+    except (TypeError, ValueError):
+        return DEFAULT_SNOW_API_TIMEOUT_SECONDS
+
+
+def _resort_api_slug(name: str, meta: Optional[dict] = None) -> str:
+    """Resolve a metadata slug, or derive one with the canonical convention."""
+    if isinstance(meta, dict):
+        info = meta.get(name)
+        if isinstance(info, dict) and info.get("slug"):
+            return str(info["slug"])
+    return _resort_slug(name)
+
+
+def snow_api_url(endpoint: str, resort_name: Optional[str] = None) -> str:
+    """Build a public Snow API URL for a fixed endpoint and optional resort."""
+    path = str(endpoint or "").strip("/")
+    url = f"{_snow_api_base_url()}/{path}"
+    if resort_name is not None:
+        slug = quote(_resort_api_slug(resort_name), safe="_-")
+        url = f"{url}/{slug}"
+    return url
+
+
+def _snow_api_get(endpoint: str, resort_name: Optional[str] = None) -> dict:
+    """GET and validate a JSON-object response from the public Snow API."""
+    url = snow_api_url(endpoint, resort_name)
+    try:
+        response = requests.get(
+            url,
+            timeout=_snow_api_timeout(),
+            headers={"User-Agent": SNOW_API_USER_AGENT, "Accept": "application/json"},
+        )
+        response.raise_for_status()
+        payload = response.json() if response.content else {}
+    except Exception as exc:
+        raise SnowApiError(f"Snow API request failed for {url}: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise SnowApiError(f"Snow API returned a non-object payload for {url}")
+    return payload
+
+
+def clear_resort_meta_cache() -> None:
+    """Clear the process metadata cache; primarily useful after config changes."""
+    global _meta_cache, _meta_cache_source, _meta_retry_at
+    with _meta_cache_lock:
+        _meta_cache = None
+        _meta_cache_source = None
+        _meta_retry_at = 0.0
+
+
+def load_resort_meta(force_refresh: bool = False) -> dict:
+    """Load canonical resort metadata from Snow API with an offline fallback.
+
+    API metadata is normalized into the historical name-to-info mapping used by
+    the touchscreen screens. Successful data refreshes hourly; bundled fallback
+    data and failed refreshes are retried after OFFLINE_META_RETRY_SECONDS.
+    """
+    global _meta_cache, _meta_cache_source, _meta_retry_at
+    with _meta_cache_lock:
+        now = time.monotonic()
+        if not force_refresh and isinstance(_meta_cache, dict):
+            if now < _meta_retry_at:
+                return _meta_cache
+
+        try:
+            payload = _snow_api_get("resorts/meta")
+            normalized = _normalize_resort_meta(payload)
+            if not normalized:
+                raise SnowApiError("Snow API resort metadata contains no resorts")
+            _meta_cache = normalized
+            _meta_cache_source = "api"
+            _meta_retry_at = now + API_META_CACHE_SECONDS
+            return _meta_cache
+        except SnowApiError as exc:
+            print(f"[Resorts] {exc}; using bundled metadata fallback.")
+            if _meta_cache_source == "api" and isinstance(_meta_cache, dict):
+                _meta_retry_at = now + OFFLINE_META_RETRY_SECONDS
+                return _meta_cache
+            fallback = _load_local_resort_meta()
+            if fallback:
+                _meta_cache = fallback
+                _meta_cache_source = "offline"
+                _meta_retry_at = now + OFFLINE_META_RETRY_SECONDS
+                return _meta_cache
+            if isinstance(_meta_cache, dict):
+                return _meta_cache
+            return {}
+
+
+# Historical private name retained for snowgui compatibility.
+_load_resort_meta = load_resort_meta
 
 
 def _read_selected_resort_index(path="conf/skihill.conf") -> int:
@@ -295,43 +445,45 @@ def cycle_resort_in_active_region(direction: int, meta: Optional[dict] = None) -
 
 
 def _resort_slug(name: str) -> str:
-    """Convert a resort name to the JSON filename used on the VPS."""
-    slug = (name or "").strip()
-    slug = slug.replace("'", "").replace("-", "_").replace(" ", "_")
-    slug = re.sub(r"_+", "_", slug)
+    """Convert a display name using the Snow API's canonical slug convention.
+
+    Only spaces become underscores. Apostrophes, hyphens, accents, and existing
+    underscores are part of the canonical metadata slug and must be preserved;
+    ``snow_api_url`` percent-encodes characters that are unsafe in a URL path.
+    """
+    slug = (name or "").strip().replace(" ", "_")
     return slug or "Unknown"
 
 
+def fetch_current_snow(name: str) -> dict:
+    """Fetch and validate the Snow API current endpoint for one resort.
+
+    Transport and malformed-payload failures raise SnowApiError so callers can
+    retain the last successful reading. A valid API null remains None and is
+    handled separately from a request failure.
+    """
+    payload = _snow_api_get("current", name)
+    if not isinstance(payload.get("current"), dict):
+        raise SnowApiError(f"Snow API current payload is malformed for {name}")
+    return payload
+
+
+def fetch_snow_history(name: str) -> dict:
+    """Fetch and validate the Snow API 30-day history for one resort."""
+    payload = _snow_api_get("history30", name)
+    if not isinstance(payload.get("history"), list):
+        raise SnowApiError(f"Snow API history payload is malformed for {name}")
+    return payload
+
+
+def snow_history_url(name: str) -> str:
+    """Return the canonical API URL used for the resort's 30-day chart."""
+    return snow_api_url("history30", name)
+
+
 def _load_resort_json(name: str) -> dict:
-    """
-    Fetch the resort JSON payload from the VPS (with local fallback).
-    Returns {} on failure.
-    """
-    slug = _resort_slug(name)
-    base_url = os.getenv("SNOWPLOW_JSON_BASE", "http://vps.snowscraper.ca/json").rstrip("/")
-    json_url = f"{base_url}/{slug}.json"
-    data = {}
-
-    try:
-        resp = requests.get(json_url, timeout=10, headers={"User-Agent": "SnowGUI/2.3.0"})
-        resp.raise_for_status()
-        data = resp.json() if resp.content else {}
-    except Exception as e_http:
-        print(f"[{name}] HTTP JSON fetch failed ({e_http}); trying local fallback.")
-
-    if not data:
-        try:
-            local_dir = os.getenv("SNOWPLOW_JSON_DIR", "/opt/snowplow/data/json")
-            local_path = os.path.join(local_dir, f"{slug}.json")
-            if os.path.exists(local_path):
-                with open(local_path, "r") as f:
-                    data = json.load(f)
-            else:
-                print(f"[{name}] Local JSON not found at {local_path}")
-        except Exception as e_file:
-            print(f"[{name}] Failed to read local JSON: {e_file}")
-
-    return data if isinstance(data, dict) else {}
+    """Compatibility wrapper for the former static-JSON loader."""
+    return fetch_current_snow(name)
 
 def log_snow_data(hill):
     """
@@ -339,9 +491,11 @@ def log_snow_data(hill):
     Structure:
     {
         "Sun Peaks": {
-            "current": {"date": "YYYY-MM-DD", "newSnow": int, "weekSnow": int, "baseSnow": int},
+            "current": {"date": "YYYY-MM-DD", "newSnow": int|null,
+                        "daySnow": int|null, "weekSnow": int|null,
+                        "baseSnow": int|null},
             "history": [
-                {"date": "YYYY-MM-DD", "newSnow": int, "weekSnow": int, "baseSnow": int},
+                {"date": "YYYY-MM-DD", ...},
                 ...
             ]
         },
@@ -366,9 +520,10 @@ def log_snow_data(hill):
     # Create current reading
     current_reading = {
         "date": today,
-        "newSnow": int(hill.newSnow),
-        "weekSnow": int(hill.weekSnow),
-        "baseSnow": int(hill.baseSnow)
+        "newSnow": _optional_int(hill.newSnow),
+        "daySnow": _optional_int(getattr(hill, "daySnow", None)),
+        "weekSnow": _optional_int(hill.weekSnow),
+        "baseSnow": _optional_int(hill.baseSnow),
     }
 
     # Update current
@@ -394,21 +549,30 @@ class skiHill:
         self.name = name
         self.url = url
         self.newSnow = newSnow
+        self.daySnow = newSnow
         self.weekSnow = weekSnow
         self.baseSnow = baseSnow
+        self.freshness = None
+        self.source = None
+        self.scraper_disabled = False
 
     def getSnow(self):
         if DEV_MODE:
             print("[DEV] Skipping live fetch; using stub values.")
             self.newSnow = 1
+            self.daySnow = 1
             self.weekSnow = 3
             self.baseSnow = 120
             return
         print(f"[getSnow] {self.name}")
         data = _load_resort_json(self.name)
-        cur = data.get("current") or {}
-        self.newSnow = _safe_int(cur.get("newSnow", 0))
-        self.weekSnow = _safe_int(cur.get("weekSnow", 0))
-        self.baseSnow = _safe_int(cur.get("baseSnow", 0))
+        cur = data["current"]
+        self.url = snow_api_url("current", self.name)
+        self.newSnow = _optional_int(cur.get("newSnow"))
+        self.daySnow = _optional_int(cur.get("daySnow"))
+        self.weekSnow = _optional_int(cur.get("weekSnow"))
+        self.baseSnow = _optional_int(cur.get("baseSnow"))
+        self.freshness = data.get("freshness") if isinstance(data.get("freshness"), dict) else None
+        self.source = data.get("source") if isinstance(data.get("source"), dict) else None
+        self.scraper_disabled = bool(data.get("scraper_disabled"))
         log_snow_data(self)
-

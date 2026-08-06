@@ -251,7 +251,17 @@ def _load_resort_meta(path=RESORT_META_FILE) -> dict:
 
 
 def _get_resort_point(name: str):
-    meta = _load_resort_meta().get(name) or {}
+    # Resort selection now consumes the canonical Snow API metadata. Importing
+    # lazily avoids a module-import cycle (resorts reuses this module's metadata
+    # normalizer) while ensuring newly added API resorts also have avalanche
+    # coordinates. The bundled metadata remains the final offline fallback.
+    try:
+        from .resorts import load_resort_meta
+
+        all_meta = load_resort_meta()
+    except Exception:
+        all_meta = _load_resort_meta()
+    meta = all_meta.get(name) or {}
     lat = meta.get("lat") or meta.get("latitude") or meta.get("y")
     lon = meta.get("lon") or meta.get("long") or meta.get("lng") or meta.get("longitude") or meta.get("x")
     if lat is None or lon is None:
@@ -644,9 +654,10 @@ def _fetch_resort_forecast(resort_name: str, point) -> dict:
         return _fetch_caic_forecast(resort_name, caic_meta)
 
     if not point:
-        raise RuntimeError(f"No lat/lon for '{resort_name}'. Update {RESORT_META_FILE}.")
+        raise RuntimeError(
+            f"No lat/lon for '{resort_name}' in Snow API or {RESORT_META_FILE}."
+        )
 
     lat, lon = point
     return _fetch_point_forecast(lat, lon)
-
 

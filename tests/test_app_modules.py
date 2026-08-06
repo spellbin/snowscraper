@@ -123,6 +123,20 @@ class AvalancheNormalizationTests(unittest.TestCase):
             21,
         )
 
+    def test_resort_point_uses_api_backed_metadata_loader(self):
+        api_only = {
+            "API-only Resort": {
+                "slug": "API_only_Resort",
+                "lat": 51.25,
+                "lon": -120.75,
+            }
+        }
+        with mock.patch.object(resorts, "load_resort_meta", return_value=api_only):
+            self.assertEqual(
+                avalanche._get_resort_point("API-only Resort"),
+                (51.25, -120.75),
+            )
+
 
 class ResortSelectionTests(unittest.TestCase):
     """Country/region filters retain metadata order and legacy catch-all labels."""
@@ -165,6 +179,212 @@ class ResortSelectionTests(unittest.TestCase):
         with mock.patch.object(resorts, "DEV_MODE", True):
             hill.getSnow()
         self.assertEqual((hill.newSnow, hill.weekSnow, hill.baseSnow), (1, 3, 120))
+        self.assertEqual(hill.daySnow, 1)
+
+
+class ResortSnowApiTests(unittest.TestCase):
+    """Snow API transport, payload, fallback, and null semantics."""
+
+    def setUp(self):
+        resorts.clear_resort_meta_cache()
+
+    def tearDown(self):
+        resorts.clear_resort_meta_cache()
+
+    def test_urls_use_https_api_root_and_canonical_slug(self):
+        with mock.patch.dict(
+            resorts.os.environ,
+            {"SNOW_API_BASE_URL": "https://snow.example/api/snow/"},
+        ):
+            self.assertEqual(
+                resorts.snow_api_url("current", "O'Brien-Hill"),
+                "https://snow.example/api/snow/current/O%27Brien-Hill",
+            )
+            self.assertEqual(
+                resorts.snow_history_url("Sun Peaks"),
+                "https://snow.example/api/snow/history30/Sun_Peaks",
+            )
+
+    def test_url_preserves_the_canonical_val_disere_slug(self):
+        with mock.patch.dict(
+            resorts.os.environ,
+            {"SNOW_API_BASE_URL": "https://snow.example/api/snow"},
+        ):
+            self.assertEqual(
+                resorts.snow_api_url("current", "VAL D'ISÈRE"),
+                "https://snow.example/api/snow/current/VAL_D%27IS%C3%88RE",
+            )
+
+    def test_api_metadata_normalizes_and_preserves_server_order(self):
+        payload = {
+            "resorts": [
+                {
+                    "name": "Sun Peaks",
+                    "slug": "Sun_Peaks",
+                    "country": "CA",
+                    "region": "BC",
+                    "lat": 50.883,
+                    "lon": -119.885,
+                },
+                {
+                    "name": "Whistler",
+                    "slug": "Whistler",
+                    "country": "CA",
+                    "region": "BC",
+                    "lat": 50.113,
+                    "lon": -122.954,
+                },
+            ]
+        }
+        with mock.patch.object(resorts, "_snow_api_get", return_value=payload):
+            meta = resorts.load_resort_meta(force_refresh=True)
+        self.assertEqual(list(meta), ["Sun Peaks", "Whistler"])
+        self.assertEqual(meta["Sun Peaks"]["slug"], "Sun_Peaks")
+
+    def test_transport_uses_json_headers_timeout_and_configured_base(self):
+        payload = {"current": {"newSnow": 3}}
+        response = mock.Mock()
+        response.content = b"{}"
+        response.json.return_value = payload
+        with mock.patch.dict(
+            resorts.os.environ,
+            {
+                "SNOW_API_BASE_URL": "https://snow.example/api/snow",
+                "SNOW_API_TIMEOUT_SECONDS": "4.5",
+            },
+        ):
+            with mock.patch.object(
+                resorts.requests,
+                "get",
+                return_value=response,
+            ) as get:
+                self.assertEqual(
+                    resorts._snow_api_get("current", "Sun Peaks"),
+                    payload,
+                )
+        get.assert_called_once_with(
+            "https://snow.example/api/snow/current/Sun_Peaks",
+            timeout=4.5,
+            headers={
+                "User-Agent": resorts.SNOW_API_USER_AGENT,
+                "Accept": "application/json",
+            },
+        )
+        response.raise_for_status.assert_called_once_with()
+
+    def test_metadata_uses_bundled_fallback_after_api_failure(self):
+        fallback = {
+            "Sun Peaks": {
+                "slug": "Sun_Peaks",
+                "country": "CA",
+                "region": "BC",
+                "lat": 50.883,
+                "lon": -119.885,
+            }
+        }
+        with mock.patch.object(
+            resorts,
+            "_snow_api_get",
+            side_effect=resorts.SnowApiError("offline"),
+        ):
+            with mock.patch.object(
+                resorts,
+                "_load_local_resort_meta",
+                return_value=fallback,
+            ):
+                self.assertEqual(
+                    resorts.load_resort_meta(force_refresh=True),
+                    fallback,
+                )
+        self.assertEqual(resorts._meta_cache_source, "offline")
+
+    def test_failed_refresh_retains_last_full_api_universe(self):
+        canonical = {
+            "resorts": [
+                {
+                    "name": "Sun Peaks",
+                    "slug": "Sun_Peaks",
+                    "country": "CA",
+                    "region": "BC",
+                    "lat": 50.883,
+                    "lon": -119.885,
+                },
+                {
+                    "name": "API-only Resort",
+                    "slug": "API_only_Resort",
+                    "country": "CA",
+                    "region": "BC",
+                    "lat": 51.0,
+                    "lon": -120.0,
+                },
+            ]
+        }
+        with mock.patch.object(resorts, "_snow_api_get", return_value=canonical):
+            first = resorts.load_resort_meta(force_refresh=True)
+        with mock.patch.object(
+            resorts,
+            "_snow_api_get",
+            side_effect=resorts.SnowApiError("temporary outage"),
+        ):
+            with mock.patch.object(
+                resorts,
+                "_load_local_resort_meta",
+                return_value={"Sun Peaks": {}},
+            ):
+                refreshed = resorts.load_resort_meta(force_refresh=True)
+        self.assertIs(refreshed, first)
+        self.assertIn("API-only Resort", refreshed)
+        self.assertEqual(resorts._meta_cache_source, "api")
+
+    def test_current_payload_preserves_null_and_verified_zero(self):
+        payload = {
+            "current": {
+                "date": "2026-08-06",
+                "newSnow": None,
+                "daySnow": 0,
+                "weekSnow": None,
+                "baseSnow": 120,
+            },
+            "freshness": {"level": "suspect"},
+            "source": {"provider": "Fixture", "url": "https://example.test"},
+        }
+        hill = resorts.skiHill("Sun Peaks", "", 8, 20, 100)
+        with mock.patch.object(resorts, "_load_resort_json", return_value=payload):
+            with mock.patch.object(resorts, "log_snow_data"):
+                hill.getSnow()
+        self.assertIsNone(hill.newSnow)
+        self.assertEqual(hill.daySnow, 0)
+        self.assertIsNone(hill.weekSnow)
+        self.assertEqual(hill.baseSnow, 120)
+        self.assertEqual(hill.freshness, {"level": "suspect"})
+
+    def test_current_request_failure_keeps_last_successful_values(self):
+        hill = resorts.skiHill("Sun Peaks", "", 8, 20, 100)
+        hill.daySnow = 7
+        with mock.patch.object(
+            resorts,
+            "_load_resort_json",
+            side_effect=resorts.SnowApiError("network down"),
+        ):
+            with self.assertRaises(resorts.SnowApiError):
+                hill.getSnow()
+        self.assertEqual(
+            (hill.newSnow, hill.daySnow, hill.weekSnow, hill.baseSnow),
+            (8, 7, 20, 100),
+        )
+
+    def test_history_requires_the_contract_history_list(self):
+        with mock.patch.object(
+            resorts,
+            "_snow_api_get",
+            return_value={"history": [{"date": "2026-08-06", "daySnow": 4}]},
+        ):
+            payload = resorts.fetch_snow_history("Sun Peaks")
+        self.assertEqual(payload["history"][0]["daySnow"], 4)
+
+        with mock.patch.object(resorts, "_snow_api_get", return_value={"history": None}):
+            with self.assertRaises(resorts.SnowApiError):
+                resorts.fetch_snow_history("Sun Peaks")
 
 
 class AlarmPersistenceTests(unittest.TestCase):

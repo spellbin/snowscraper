@@ -145,7 +145,6 @@ from snowscraper_app.avalanche import (
     _get_center_products,
     _get_resort_point,
     _html_to_text,
-    _load_resort_meta,
     _normalize_resort_meta,
     _parse_iso_dt,
     _parse_simple_yaml,
@@ -161,6 +160,7 @@ from snowscraper_app.resorts import (
     OTHER_REGION_LABEL,
     REGION_CONF_FILE,
     SNOW_LOG_FILE,
+    _load_resort_meta,
     _load_resort_json,
     _read_selected_country,
     _read_selected_region,
@@ -171,6 +171,7 @@ from snowscraper_app.resorts import (
     _write_selected_resort_index,
     cycle_resort_in_active_region,
     current_resort_name,
+    fetch_snow_history,
     get_active_resorts,
     get_countries,
     get_regions,
@@ -178,6 +179,7 @@ from snowscraper_app.resorts import (
     log_snow_data,
     set_current_resort_by_name,
     skiHill,
+    snow_history_url,
 )
 try:
     from debug_hud import draw_cpu_badge, draw_wifi_bars_badge
@@ -431,6 +433,16 @@ def _safe_int(val, default=0):
         return int(s) if s else default
     except Exception:
         return default
+
+
+def _snow_cm_text(value) -> str:
+    """Format a Snow API measurement without turning unavailable into zero."""
+    if value is None:
+        return "N/A"
+    try:
+        return f"{int(round(float(value)))}cm"
+    except (TypeError, ValueError):
+        return "N/A"
 
 
 def _load_font(path="fonts/pixem.otf", size=18):
@@ -1194,7 +1206,7 @@ class MainMenuScreen(Screen):
 class ChartScreen(Screen):
     """
     History chart screen:
-    - Uses the currently selected hill's URL/name to resolve a Snow Plow-style JSON history feed.
+    - Uses the Snow API 30-day history endpoint for the selected resort.
     - Left Y-axis: 7-day & base depth (lines).
     - Right Y-axis: 24h new snow (bars, LED-style colors).
     - Back button bottom-right -> Mountain Report for the same hill.
@@ -1233,32 +1245,9 @@ class ChartScreen(Screen):
             return draw.textsize(text, font=font)
 
     def _resolve_history_url(self):
-        """
-        Decide which JSON history endpoint to use for the current hill.
-
-        Priority:
-        1. If hill.url already looks like a JSON endpoint, use it.
-        2. Else, derive from hill.name as http://vps.snowscraper.ca/json/Name_With_Underscores.json
-        3. Fallback to Banff Sunshine JSON.
-        """
-        u = str(getattr(self.hill, "url", "") or "").strip()
-        name = (getattr(self.hill, "name", "") or "").strip()
-
-        # Direct JSON-style URLs
-        if u.endswith(".json") or "/json/" in u:
-            return u
-
-        # Derive from hill name if we have one
-        if name:
-            slug = (
-                name.replace("'", "")
-                    .replace(" ", "_")
-                    .replace("-", "_")
-            )
-            return f"http://vps.snowscraper.ca/json/{slug}.json"
-
-        # Absolute fallback
-        return "http://vps.snowscraper.ca/json/Banff_Sunshine.json"
+        """Return the canonical Snow API history URL for status logging."""
+        name = (getattr(self.hill, "name", "") or "").strip() or "Sun Peaks"
+        return snow_history_url(name)
 
     def _bar_color_for_cm(self, cm):
         """
@@ -1289,9 +1278,7 @@ class ChartScreen(Screen):
     # ---------- Data fetch ----------
     def _fetch_history(self):
         try:
-            resp = requests.get(self.url, timeout=6)
-            resp.raise_for_status()
-            payload = resp.json()
+            payload = fetch_snow_history(self.hill.name)
         except Exception as e:
             print(f"[ChartScreen] Fetch failed from {self.url}: {e}")
             return []
@@ -1326,7 +1313,11 @@ class ChartScreen(Screen):
             date_str = str(date_raw)
             label = date_str[-5:] if len(date_str) >= 5 else date_str
 
-            new24 = _safe_int(pick(["newSnow", "new_24", "snow_24h", "24h"], 0))
+            # History labels are daily/24h values. The Snow API contract says
+            # daySnow is authoritative; newSnow is only a legacy-row fallback.
+            new24 = _safe_int(
+                pick(["daySnow", "newSnow", "new_24", "snow_24h", "24h"], 0)
+            )
             week = _safe_int(pick(["weekSnow", "new_7d", "snow_7d", "7d"], 0))
             base = _safe_int(pick(["baseSnow", "base", "base_cm", "baseDepth"], 0))
 
@@ -2086,7 +2077,10 @@ class SnowReportScreen(Screen):
         try:
             print(f"[SnowReport] Refreshing data for {self.hill.name}...")
             self.hill.getSnow()
-            leds_set_snow(self.hill.newSnow, self.hill.newSnow)
+            if self.hill.newSnow is None:
+                leds_clear()
+            else:
+                leds_set_snow(self.hill.newSnow, self.hill.newSnow)
         except Exception as e:
             print(f"[SnowReport] Failed to refresh: {e}")
         try:
@@ -2133,10 +2127,10 @@ class SnowReportScreen(Screen):
         font_title = _load_font("fonts/superpixel.ttf", size=30)
         font_line  = _load_font("fonts/ponderosa.ttf", size=16)
 
-        # Normalize numbers just in case theyÃ¢â‚¬â„¢re strings
-        new_cm   = _safe_int(h.newSnow)
-        week_cm  = _safe_int(h.weekSnow)
-        base_cm  = _safe_int(h.baseSnow)
+        # Preserve Snow API null as N/A. A verified zero still renders as 0cm.
+        new_cm = _snow_cm_text(h.newSnow)
+        week_cm = _snow_cm_text(h.weekSnow)
+        base_cm = _snow_cm_text(h.baseSnow)
 
         # Text block (tweak positions to taste)
         x = 55
@@ -2156,9 +2150,9 @@ class SnowReportScreen(Screen):
             max_sz=38,
             align="center",
         )
-        draw.text((x, 115), f"New  Snow: {new_cm}cm",  fill="white", font=font_line)
-        draw.text((x, 144), f"Week Snow: {week_cm}cm", fill="white", font=font_line)
-        draw.text((x, 173), f"Base Snow: {base_cm}cm", fill="white", font=font_line)
+        draw.text((x, 115), f"New  Snow: {new_cm}",  fill="white", font=font_line)
+        draw.text((x, 144), f"Week Snow: {week_cm}", fill="white", font=font_line)
+        draw.text((x, 173), f"Base Snow: {base_cm}", fill="white", font=font_line)
 
         if self.image_missing:
             f2 = ImageFont.load_default()
@@ -2945,12 +2939,14 @@ def main():
 
         if DEV_MODE:
             hill.newSnow = 10
+            hill.daySnow = 10
             hill.weekSnow = 20
             hill.baseSnow = 187
 
 
         last_fetch = 0
         FETCH_PERIOD = 10 * 60  # 10 minutes
+        FETCH_RETRY_PERIOD = 60  # avoid hammering the API during an outage
 
         screen_manager = ScreenManager()
         screen_manager.hill = hill
@@ -2959,7 +2955,7 @@ def main():
 
         while True:
             try:
-                current_snow_cm = getattr(main, "_prev_snow_cm", 0)
+                current_snow_cm = getattr(main, "_prev_snow_cm", None)
 
                 if touch:
                     try:
@@ -2988,9 +2984,12 @@ def main():
                         if not DEV_MODE:
                             hill.getSnow()
                         last_fetch = now_ts
-                        print(f"[Snow] {hill.name}: 24h new = {hill.newSnow}")
+                        print(f"[Snow] {hill.name}: new snow = {hill.newSnow}")
                     except Exception as e:
                         print(f"[Snow] Fetch failed: {e}")
+                        # Schedule a short retry without making every 10 Hz loop
+                        # iteration hit the API while connectivity is down.
+                        last_fetch = now_ts - (FETCH_PERIOD - FETCH_RETRY_PERIOD)
 
                     # Refresh the screen so SnowReportScreen shows the latest values
                     try:
@@ -2999,40 +2998,50 @@ def main():
                         logger.exception("Screen redraw failed.")
 
                     try:
-                        sn = hill.newSnow
-                        if isinstance(sn, str):
-                            sn = _safe_int(sn)
-                        current_snow_cm = int(sn)
-
                         prev = getattr(main, "_prev_snow_cm", None)
+                        sn = hill.newSnow
 
-                        # First run: initialize LEDs once
-                        if prev is None:
-                            main._prev_snow_cm = current_snow_cm
-                            leds_set_snow(current_snow_cm, current_snow_cm)
+                        if sn is None:
+                            current_snow_cm = None
+                            if prev is not None:
+                                print("[Snow] Current new-snow value is unavailable.")
+                                if hasattr(screen_manager, "overlay"):
+                                    screen_manager.overlay.stop()
+                                leds_clear()
+                            main._prev_snow_cm = None
+                        else:
+                            if isinstance(sn, str):
+                                sn = _safe_int(sn)
+                            current_snow_cm = int(sn)
 
-                        # Subsequent runs: only react when value changes
-                        elif current_snow_cm != prev:
-                            print(f"[Snow] Change detected: {prev} -> {current_snow_cm}")
+                            # First run: initialize LEDs once
+                            if prev is None:
+                                main._prev_snow_cm = current_snow_cm
+                                leds_set_snow(current_snow_cm, current_snow_cm)
 
-                            # Snowfall overlay trigger/stop
-                            if current_snow_cm > prev and hasattr(screen_manager, "overlay"):
-                                screen_manager.overlay.trigger(current_snow_cm - prev)
-                            elif hasattr(screen_manager, "overlay"):
-                                screen_manager.overlay.stop()
+                            # Subsequent runs: only react when value changes
+                            elif current_snow_cm != prev:
+                                print(f"[Snow] Change detected: {prev} -> {current_snow_cm}")
 
-                            # Update LEDs based on this change
-                            leds_set_snow(current_snow_cm, prev)
+                                # Snowfall overlay trigger/stop
+                                if current_snow_cm > prev and hasattr(screen_manager, "overlay"):
+                                    screen_manager.overlay.trigger(current_snow_cm - prev)
+                                elif hasattr(screen_manager, "overlay"):
+                                    screen_manager.overlay.stop()
 
-                            main._prev_snow_cm = current_snow_cm
+                                # Update LEDs based on this change
+                                leds_set_snow(current_snow_cm, prev)
+
+                                main._prev_snow_cm = current_snow_cm
 
                     except Exception:
-                        current_snow_cm = 0
+                        current_snow_cm = None
 
-                try:
-                    check_and_trigger_alarm(current_snow_cm)
-                except Exception as e:
-                    print(f"[Alarm] check failed: {e}")
+                if current_snow_cm is not None:
+                    try:
+                        check_and_trigger_alarm(current_snow_cm)
+                    except Exception as e:
+                        print(f"[Alarm] check failed: {e}")
 
                 time.sleep(0.1)
             except Exception:
