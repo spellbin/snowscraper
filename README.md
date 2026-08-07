@@ -165,8 +165,14 @@ Optional overrides:
   https://plow.snowscraper.ca/api/v1/snowscraper/heartbeat.
 
 - SNOWSCRAPER_HEARTBEAT_INTERVAL_SECONDS
-  Reporting cadence. Defaults to 60 seconds; the backend marks a reporter stale
-  after 180 seconds by default.
+  Reporting cadence. Defaults to 600 seconds (10 minutes); the backend marks a
+  reporter stale after 1800 seconds by default. This is a liveness signal, not a
+  metrics feed, so a slower cadence costs no fidelity. Each wait carries +/-10%
+  jitter, and a failing backend is retried with exponential backoff up to an
+  hour, so an outage neither floods the logs nor produces a thundering herd on
+  recovery. If you do NOT set this, the backend's `next_heartbeat_seconds` is
+  adopted (clamped to 60s..6h), which is how an already-deployed installation
+  gets retuned without a release; setting it explicitly pins your value.
 
 - SNOWSCRAPER_HEARTBEAT_TIMEOUT_SECONDS
   Request timeout. Defaults to 10 seconds.

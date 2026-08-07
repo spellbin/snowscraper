@@ -10,6 +10,8 @@ import importlib
 import json
 import sys
 import tempfile
+import threading
+import time
 import types
 import unittest
 from pathlib import Path
@@ -336,6 +338,79 @@ class ResortSnowApiTests(unittest.TestCase):
         self.assertIn("API-only Resort", refreshed)
         self.assertEqual(resorts._meta_cache_source, "api")
 
+    def test_a_stale_cache_is_served_without_waiting_for_the_network(self):
+        """The touchscreen must never block on the Snow API.
+
+        Screen constructors and button handlers call load_resort_meta(). It used
+        to perform the request inline under the cache lock, so an offline Pi
+        froze the UI for the request timeout every OFFLINE_META_RETRY_SECONDS.
+        """
+        resorts.clear_resort_meta_cache()
+        primed = {"resorts": [{"name": "Sun Peaks", "slug": "Sun_Peaks"}]}
+        with mock.patch.object(resorts, "_snow_api_get", return_value=primed):
+            resorts.load_resort_meta(force_refresh=True)
+        resorts._meta_retry_at = 0.0  # due for refresh
+
+        started = threading.Event()
+        release = threading.Event()
+
+        def slow_request(endpoint, resort_name=None):
+            started.set()
+            release.wait(10)
+            return {"resorts": [{"name": "Whistler", "slug": "Whistler"}]}
+
+        with mock.patch.object(resorts, "_snow_api_get", side_effect=slow_request):
+            began = time.monotonic()
+            meta = resorts.load_resort_meta()
+            elapsed = time.monotonic() - began
+
+            self.assertLess(elapsed, 1.0, "load_resort_meta blocked on the network")
+            # Served the cache it already had, rather than waiting for better.
+            self.assertEqual(list(meta), ["Sun Peaks"])
+            self.assertTrue(started.wait(5), "no background refresh was started")
+            release.set()
+            resorts._meta_refresh_thread.join(10)
+
+        # ...and the background refresh really did install the new universe.
+        self.assertEqual(list(resorts._meta_cache), ["Whistler"])
+        self.assertEqual(resorts._meta_cache_source, "api")
+
+    def test_only_one_background_refresh_runs_at_a_time(self):
+        resorts.clear_resort_meta_cache()
+        primed = {"resorts": [{"name": "Sun Peaks", "slug": "Sun_Peaks"}]}
+        with mock.patch.object(resorts, "_snow_api_get", return_value=primed):
+            resorts.load_resort_meta(force_refresh=True)
+        resorts._meta_retry_at = 0.0
+
+        calls = []
+        release = threading.Event()
+
+        def slow_request(endpoint, resort_name=None):
+            calls.append(endpoint)
+            release.wait(10)
+            return primed
+
+        with mock.patch.object(resorts, "_snow_api_get", side_effect=slow_request):
+            for _ in range(10):
+                resorts.load_resort_meta()
+            release.set()
+            resorts._meta_refresh_thread.join(10)
+        self.assertEqual(len(calls), 1, "repeated screen opens stacked up refreshes")
+
+    def test_the_first_load_still_blocks_so_boot_gets_the_real_universe(self):
+        """skihill.conf stores an INDEX into this ordering.
+
+        Serving the bundled universe first and swapping to the API one later
+        would silently change which resort that index means, so the very first
+        load -- during startup, before the UI loop -- stays synchronous.
+        """
+        resorts.clear_resort_meta_cache()
+        payload = {"resorts": [{"name": "Whistler", "slug": "Whistler"}]}
+        with mock.patch.object(resorts, "_snow_api_get", return_value=payload) as api:
+            meta = resorts.load_resort_meta()
+        self.assertEqual(api.call_count, 1)
+        self.assertEqual(list(meta), ["Whistler"])
+
     def test_current_payload_preserves_null_and_verified_zero(self):
         payload = {
             "current": {
@@ -433,6 +508,120 @@ class RemoteHealthReporterTests(unittest.TestCase):
             self.assertEqual(second.scraper_id, reporter.scraper_id)
             self.assertTrue(second.reporting_enabled)
         response.raise_for_status.assert_called_once_with()
+
+    def _reporter(self, temp_dir, env=None):
+        with mock.patch.dict(health.os.environ, env or {}, clear=True):
+            return health.RemoteHealthReporter(state_path=Path(temp_dir) / "health.json")
+
+    def _ok_response(self, body=None):
+        response = mock.Mock()
+        response.json.return_value = {} if body is None else body
+        return response
+
+    def test_the_shipped_cadence_is_ten_minutes(self):
+        """Pinned so a change is deliberate and paired with the backend.
+
+        The backend's SNOWSCRAPER_STALE_AFTER_SECONDS is measured against this;
+        raising one without the other marks the whole fleet stale.
+        """
+        self.assertEqual(health.DEFAULT_HEARTBEAT_INTERVAL_SECONDS, 600.0)
+
+    def test_an_outage_backs_off_and_recovers(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reporter = self._reporter(temp_dir)
+            reporter.interval_seconds = 100.0
+            # Pin the jitter to zero so the backoff multiplier is observable.
+            with mock.patch.object(health.random, "uniform", return_value=0.0):
+                self.assertEqual(reporter._next_delay(), 100.0)
+                with mock.patch.object(
+                    health.requests, "post", side_effect=OSError("connection refused")
+                ):
+                    for expected in (200.0, 400.0, 600.0, 600.0):
+                        self.assertFalse(reporter.send_once())
+                        self.assertEqual(reporter._next_delay(), expected)
+
+                with mock.patch.object(
+                    health.requests, "post", return_value=self._ok_response()
+                ):
+                    self.assertTrue(reporter.send_once())
+                self.assertEqual(reporter._next_delay(), 100.0)
+
+    def test_every_interval_carries_jitter(self):
+        """Without this the fleet re-converges on the backend in lockstep."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reporter = self._reporter(temp_dir)
+            reporter.interval_seconds = 100.0
+            delays = {reporter._next_delay() for _ in range(50)}
+        self.assertGreater(len(delays), 10, "delays are identical; the fleet stays in lockstep")
+        self.assertTrue(all(90.0 <= delay <= 110.0 for delay in delays), sorted(delays)[:3])
+
+    def test_an_outage_is_logged_once_not_once_per_attempt(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reporter = self._reporter(temp_dir)
+
+            with mock.patch.object(
+                health.requests, "post", side_effect=OSError("connection refused")
+            ):
+                with mock.patch("builtins.print") as printed:
+                    for _ in range(20):
+                        reporter.send_once()
+            self.assertEqual(printed.call_count, 1, "journald gets one line per outage, not per attempt")
+
+            # A different cause is genuinely new information.
+            with mock.patch.object(
+                health.requests, "post", side_effect=ValueError("bad payload")
+            ):
+                with mock.patch("builtins.print") as printed:
+                    reporter.send_once()
+                    reporter.send_once()
+            self.assertEqual(printed.call_count, 1)
+
+            with mock.patch.object(
+                health.requests, "post", return_value=self._ok_response()
+            ):
+                with mock.patch("builtins.print") as printed:
+                    self.assertTrue(reporter.send_once())
+            self.assertEqual(printed.call_count, 1)
+            self.assertIn("recovered", printed.call_args.args[0])
+
+    def test_the_backend_can_retune_an_already_deployed_installation(self):
+        """The only cadence lever that reaches a Pi nobody can force-update."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reporter = self._reporter(temp_dir)
+            self.assertEqual(reporter.interval_seconds, 600.0)
+            with mock.patch.object(
+                health.requests,
+                "post",
+                return_value=self._ok_response({"next_heartbeat_seconds": 1800}),
+            ):
+                self.assertTrue(reporter.send_once())
+            self.assertEqual(reporter.interval_seconds, 1800.0)
+
+    def test_an_implausible_server_cadence_is_ignored(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reporter = self._reporter(temp_dir)
+            for hostile in (0.5, 0, -60, 999999, "soon", None):
+                with mock.patch.object(
+                    health.requests,
+                    "post",
+                    return_value=self._ok_response({"next_heartbeat_seconds": hostile}),
+                ):
+                    self.assertTrue(reporter.send_once())
+                self.assertEqual(reporter.interval_seconds, 600.0, hostile)
+
+    def test_an_explicit_local_cadence_outranks_the_backend(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reporter = self._reporter(
+                temp_dir, {"SNOWSCRAPER_HEARTBEAT_INTERVAL_SECONDS": "120"}
+            )
+            self.assertEqual(reporter.interval_seconds, 120.0)
+            with mock.patch.object(
+                health.requests,
+                "post",
+                return_value=self._ok_response({"next_heartbeat_seconds": 1800}),
+            ):
+                self.assertTrue(reporter.send_once())
+            self.assertEqual(reporter.interval_seconds, 120.0)
 
     def test_fetch_failure_is_reported_without_erasing_last_success_time(self):
         with tempfile.TemporaryDirectory() as temp_dir:

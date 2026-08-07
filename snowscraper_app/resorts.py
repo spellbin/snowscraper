@@ -65,10 +65,16 @@ class SnowApiError(RuntimeError):
 # Successful API metadata is cached for an hour. If a refresh fails, retain the
 # last full API universe and retry shortly; never shrink an online device back
 # to the smaller bundled fallback after it has already loaded canonical data.
+#
+# The lock guards the three variables below and is NEVER held across the HTTP
+# request -- see _refresh_meta_cache. Screen constructors and touch handlers call
+# load_resort_meta(), so a request under the lock froze the whole touchscreen for
+# up to the Snow API timeout.
 _meta_cache = None
 _meta_cache_source = None
 _meta_retry_at = 0.0
 _meta_cache_lock = threading.RLock()
+_meta_refresh_thread = None
 
 # This mirrors snowgui.DEV_MODE.  The main loop skips live getSnow calls while
 # development mode is active, and the guard here preserves skiHill.getSnow's
@@ -181,45 +187,87 @@ def clear_resort_meta_cache() -> None:
         _meta_retry_at = 0.0
 
 
-def load_resort_meta(force_refresh: bool = False) -> dict:
-    """Load canonical resort metadata from Snow API with an offline fallback.
+def _refresh_meta_cache() -> None:
+    """Fetch the resort universe and install it, holding no lock while waiting.
 
-    API metadata is normalized into the historical name-to-info mapping used by
-    the touchscreen screens. Successful data refreshes hourly; bundled fallback
-    data and failed refreshes are retried after OFFLINE_META_RETRY_SECONDS.
+    Safe to call from a worker thread. Failures leave the previous cache in
+    place and simply push the next attempt out by OFFLINE_META_RETRY_SECONDS.
     """
     global _meta_cache, _meta_cache_source, _meta_retry_at
-    with _meta_cache_lock:
-        now = time.monotonic()
-        if not force_refresh and isinstance(_meta_cache, dict):
-            if now < _meta_retry_at:
-                return merge_enabled_module_metadata(_meta_cache)
-
-        try:
-            payload = _snow_api_get("resorts/meta")
-            normalized = _normalize_resort_meta(payload)
-            if not normalized:
-                raise SnowApiError("Snow API resort metadata contains no resorts")
-            _meta_cache = normalized
-            _meta_cache_source = "api"
-            _meta_retry_at = now + API_META_CACHE_SECONDS
-            return merge_enabled_module_metadata(_meta_cache)
-        except SnowApiError as exc:
-            print(f"[Resorts] {exc}; using bundled metadata fallback.")
+    try:
+        payload = _snow_api_get("resorts/meta")
+        normalized = _normalize_resort_meta(payload)
+        if not normalized:
+            raise SnowApiError("Snow API resort metadata contains no resorts")
+    except SnowApiError as exc:
+        with _meta_cache_lock:
+            _meta_retry_at = time.monotonic() + OFFLINE_META_RETRY_SECONDS
             if _meta_cache_source == "api" and isinstance(_meta_cache, dict):
-                _meta_retry_at = now + OFFLINE_META_RETRY_SECONDS
-                return merge_enabled_module_metadata(_meta_cache)
+                # Never shrink an online device back to the smaller bundled
+                # universe once it has already loaded canonical data.
+                print(f"[Resorts] {exc}; keeping the last Snow API universe.")
+                return
+            print(f"[Resorts] {exc}; using bundled metadata fallback.")
             fallback = _load_local_resort_meta()
             if fallback:
                 _meta_cache = fallback
                 _meta_cache_source = "offline"
-                _meta_retry_at = now + OFFLINE_META_RETRY_SECONDS
-                return merge_enabled_module_metadata(_meta_cache)
-            if isinstance(_meta_cache, dict):
-                return merge_enabled_module_metadata(_meta_cache)
-            # A local-only module must remain selectable even if both the Snow
-            # API and the bundled metadata are unavailable.
-            return merge_enabled_module_metadata({})
+        return
+    with _meta_cache_lock:
+        _meta_cache = normalized
+        _meta_cache_source = "api"
+        _meta_retry_at = time.monotonic() + API_META_CACHE_SECONDS
+
+
+def _start_background_meta_refresh() -> None:
+    """Refresh the cache off the caller's thread, one refresh at a time."""
+    global _meta_refresh_thread
+    with _meta_cache_lock:
+        if _meta_refresh_thread is not None and _meta_refresh_thread.is_alive():
+            return
+        _meta_refresh_thread = threading.Thread(
+            target=_refresh_meta_cache,
+            name="snowscraper-resort-meta",
+            daemon=True,
+        )
+        _meta_refresh_thread.start()
+
+
+def load_resort_meta(force_refresh: bool = False) -> dict:
+    """Return the resort universe, without ever blocking the touchscreen.
+
+    API metadata is normalized into the historical name-to-info mapping used by
+    the touchscreen screens. Successful data refreshes hourly; bundled fallback
+    data and failed refreshes are retried after OFFLINE_META_RETRY_SECONDS.
+
+    The refresh is what changed: this used to perform the Snow API request
+    inline, under the cache lock, on whatever thread asked. Screen constructors
+    and button handlers ask (SelectCountry/Region/Resort, current_resort_name),
+    so on a Pi with no network the UI froze for the request timeout, roughly
+    once a minute. A stale cache is now served immediately and refreshed on a
+    worker thread; only two paths still block, and neither is interactive:
+
+      * the very first call, during startup before the UI loop, so boot screens
+        get the canonical universe rather than briefly showing the bundled one
+        (skihill.conf stores an INDEX into this ordering, so swapping the
+        universe underneath a running UI would silently change the selection);
+      * an explicit force_refresh, which means "I want fresh data now".
+    """
+    with _meta_cache_lock:
+        cached = _meta_cache if isinstance(_meta_cache, dict) else None
+        due = time.monotonic() >= _meta_retry_at
+
+    if cached is not None and not force_refresh:
+        if due:
+            _start_background_meta_refresh()
+        return merge_enabled_module_metadata(cached)
+
+    _refresh_meta_cache()
+    with _meta_cache_lock:
+        cached = _meta_cache if isinstance(_meta_cache, dict) else None
+    # A local-only module must remain selectable even if both the Snow API and
+    # the bundled metadata are unavailable.
+    return merge_enabled_module_metadata(cached if cached is not None else {})
 
 
 # Historical private name retained for snowgui compatibility.

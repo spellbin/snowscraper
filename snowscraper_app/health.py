@@ -13,13 +13,16 @@ soon as they install a release containing this module. Customers can disable it
 from the touchscreen; that preference is persisted beside the anonymous ID and
 survives git-based application updates. Reporting is always fail-soft and runs
 in a daemon thread, so backend outages never interrupt the GUI, local watchdog,
-snow fetching, LEDs, or alarms.
+snow fetching, LEDs, or alarms. An outage is logged once rather than once per
+attempt, retried with exponential backoff, and every interval carries jitter so
+the fleet does not re-converge on the backend in lockstep after one.
 """
 
 import datetime
 import json
 import os
 from pathlib import Path
+import random
 import re
 import threading
 import time
@@ -32,8 +35,24 @@ import requests
 DEFAULT_HEARTBEAT_URL = (
     "https://plow.snowscraper.ca/api/v1/snowscraper/heartbeat"
 )
-DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60.0
+# Ten minutes. This is a liveness signal with a 30-minute staleness threshold,
+# not a metrics feed: a minute-by-minute cadence bought no extra fidelity and
+# cost 1440 requests per installation per day. Keep this in step with the
+# backend's SNOWSCRAPER_STALE_AFTER_SECONDS, which must stay comfortably above
+# it or the whole fleet reads stale between check-ins.
+DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 600.0
 DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 10.0
+# Spread the fleet's timers. Without it every Pi restarted by the same power cut
+# stays aligned forever and re-converges on the backend together after any
+# outage. +/-10% of the interval is enough to smear a herd across a minute.
+HEARTBEAT_JITTER_FRACTION = 0.1
+# A backend outage should not be hammered every interval by every installation.
+# 10 min -> at most 1 h between attempts while it stays down.
+HEARTBEAT_MAX_BACKOFF_MULTIPLIER = 6
+# Bounds on a server-supplied cadence, so a bad or hostile `next_heartbeat_seconds`
+# can neither turn this into a busy loop nor quietly silence reporting.
+MIN_ACCEPTED_INTERVAL_SECONDS = 60.0
+MAX_ACCEPTED_INTERVAL_SECONDS = 21600.0
 DEFAULT_STATE_PATH = Path(__file__).resolve().parent.parent / "conf" / "health.json"
 HEARTBEAT_USER_AGENT = "SnowGUI-Health"
 MAX_REPORTED_ERROR_LENGTH = 1000
@@ -77,6 +96,11 @@ class RemoteHealthReporter:
             "SNOWSCRAPER_HEARTBEAT_INTERVAL_SECONDS",
             DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
         )
+        # An operator who set the interval explicitly outranks the backend's
+        # suggestion; see _adopt_server_interval.
+        self._interval_pinned = bool(
+            os.getenv("SNOWSCRAPER_HEARTBEAT_INTERVAL_SECONDS", "").strip()
+        )
         self.timeout_seconds = _positive_float(
             "SNOWSCRAPER_HEARTBEAT_TIMEOUT_SECONDS",
             DEFAULT_HEARTBEAT_TIMEOUT_SECONDS,
@@ -91,6 +115,8 @@ class RemoteHealthReporter:
         self._selected_resort = None
         self._last_snow_fetch_at = None
         self._last_error = None
+        self._failure_streak = 0
+        self._last_failure_text = None
 
         # State creation is local-only and must never make application import
         # fail. If the filesystem is temporarily read-only, the runtime ID still
@@ -194,6 +220,64 @@ class RemoteHealthReporter:
                 "reported_at": _utc_now_text(),
             }
 
+    def _note_failure(self, exc) -> None:
+        """Record a failed attempt, logging an outage once rather than forever.
+
+        Heartbeats are frequent and fail-soft, so an unreachable backend used to
+        write one line per attempt into journald indefinitely -- 1440 a day per
+        installation at the old cadence. Log the start of an outage and any
+        change in its cause; stay quiet for the identical failure repeating.
+        """
+        text = f"{type(exc).__name__}: {exc}"
+        with self._lock:
+            self._failure_streak += 1
+            streak = self._failure_streak
+            changed = text != self._last_failure_text
+            self._last_failure_text = text
+        if streak == 1 or changed:
+            print(f"[RemoteHealth] Heartbeat failed ({text}); backing off, will retry.")
+
+    def _note_success(self) -> None:
+        """Clear the failure streak, reporting recovery if there was one."""
+        with self._lock:
+            streak = self._failure_streak
+            self._failure_streak = 0
+            self._last_failure_text = None
+        if streak:
+            print(f"[RemoteHealth] Heartbeat recovered after {streak} failed attempt(s).")
+
+    def _adopt_server_interval(self, response) -> None:
+        """Let the backend retune the cadence without a client release.
+
+        This reporter is open source and updates on the customer's schedule, so
+        the response is the only lever that reaches an already-deployed Pi. An
+        explicit local setting still wins, and the value is bounds-checked.
+        """
+        if self._interval_pinned:
+            return
+        try:
+            seconds = float((response.json() or {}).get("next_heartbeat_seconds"))
+        except (AttributeError, TypeError, ValueError):
+            return
+        if not MIN_ACCEPTED_INTERVAL_SECONDS <= seconds <= MAX_ACCEPTED_INTERVAL_SECONDS:
+            return
+        with self._lock:
+            changed = seconds != self.interval_seconds
+            self.interval_seconds = seconds
+        if changed:
+            print(f"[RemoteHealth] Backend set the heartbeat interval to {seconds:g}s.")
+
+    def _next_delay(self) -> float:
+        """Seconds to wait before the next attempt: backoff, then jitter."""
+        with self._lock:
+            interval = self.interval_seconds
+            streak = self._failure_streak
+        backoff = min(2 ** streak, HEARTBEAT_MAX_BACKOFF_MULTIPLIER) if streak else 1
+        delay = interval * backoff
+        return max(1.0, delay * (1.0 + random.uniform(
+            -HEARTBEAT_JITTER_FRACTION, HEARTBEAT_JITTER_FRACTION
+        )))
+
     def send_once(self) -> bool:
         """Send one anonymous heartbeat, never disrupting the application."""
         if not self.reporting_enabled:
@@ -209,10 +293,12 @@ class RemoteHealthReporter:
                 },
             )
             response.raise_for_status()
-            return True
         except Exception as exc:
-            print(f"[RemoteHealth] Heartbeat failed: {exc}")
+            self._note_failure(exc)
             return False
+        self._adopt_server_interval(response)
+        self._note_success()
+        return True
 
     def start(self, app_version: Optional[str] = None) -> bool:
         """Start one daemon worker; repeated calls are harmless."""
@@ -245,8 +331,13 @@ class RemoteHealthReporter:
         while not self._stop_event.is_set():
             if self.reporting_enabled:
                 self.send_once()
-            self._wake_event.wait(self.interval_seconds)
+            woken = self._wake_event.wait(self._next_delay())
             self._wake_event.clear()
+            if woken:
+                # A preference change is a deliberate act at the glass; don't
+                # make the customer wait out an outage backoff to see it apply.
+                with self._lock:
+                    self._failure_streak = 0
 
 
 # Process-wide reporter shared by the resort fetcher, watchdog, and privacy UI.
