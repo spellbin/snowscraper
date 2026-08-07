@@ -10,8 +10,11 @@ This module normalizes those providers to one dictionary containing title,
 region, danger ratings, summary, and issued time.  The touchscreen screens can
 therefore render a forecast without knowing which provider supplied it.
 
-Network timeouts, response validation, cache behavior, selection order, and error
-messages intentionally match the original snowgui.py implementation.
+Network timeouts, response validation, selection order, and error messages
+intentionally match the original snowgui.py implementation. Cache behavior
+deliberately does NOT: the original memoized each centre's product list for the
+life of the process, which pinned a long-running appliance to whichever forecast
+was current when it booted. See ``_get_center_products``.
 """
 
 import datetime
@@ -19,6 +22,7 @@ import json
 import os
 import re
 import threading
+import time
 from functools import lru_cache
 from html import unescape
 from typing import Optional
@@ -382,8 +386,40 @@ def _parse_iso_dt(dt_str):
 
 
 _TAG_RE = re.compile(r"<[^>]+>")
+
+# NWAC and CAIC publish a NEW product (a new id) for each forecast cycle, so the
+# product list is not static reference data -- it is the thing that tells us
+# which forecast is current. Caching it without expiry pinned an appliance to
+# whichever forecast happened to be live when it booted, and these run for
+# months at a time: the screen kept presenting a months-old avalanche danger
+# rating as today's. The list is cached only long enough to keep repeated screen
+# opens off the network.
+#
+# Entries are (fetched_at_monotonic, products).
 _CENTER_PRODUCTS_CACHE = {}
 _CENTER_PRODUCTS_LOCK = threading.RLock()
+
+
+def _center_products_ttl() -> float:
+    """Seconds a cached product list stays usable. Read per call so it is
+    configurable at runtime and overridable in tests."""
+    try:
+        ttl = float(os.getenv("AVY_PRODUCTS_TTL_SECONDS", str(CENTER_PRODUCTS_TTL_SECONDS)))
+    except (TypeError, ValueError):
+        return CENTER_PRODUCTS_TTL_SECONDS
+    return ttl if ttl >= 0 else CENTER_PRODUCTS_TTL_SECONDS
+
+
+# Fifteen minutes. Forecasts change a few times a day, so this is far tighter
+# than the data it guards, while still collapsing the burst of loads you get
+# from opening the avalanche screen a few times in a row.
+CENTER_PRODUCTS_TTL_SECONDS = 900.0
+
+
+def clear_center_products_cache() -> None:
+    """Drop cached product lists; useful after a suspend or in tests."""
+    with _CENTER_PRODUCTS_LOCK:
+        _CENTER_PRODUCTS_CACHE.clear()
 
 
 def _html_to_text(text: str) -> str:
@@ -414,11 +450,25 @@ def _fetch_center_products(center_id: str, limit: Optional[int] = None):
 
 
 def _get_center_products(center_id: str, limit: Optional[int] = None):
+    """Return this centre's forecast products, refetching once the cache ages out.
+
+    A failed refresh raises rather than falling back to the expired list. For an
+    avalanche danger rating, "unavailable" is honest and the screen already
+    renders it; silently showing an old forecast as current is not.
+    """
     cache_key = (center_id, limit)
     with _CENTER_PRODUCTS_LOCK:
-        if cache_key not in _CENTER_PRODUCTS_CACHE:
-            _CENTER_PRODUCTS_CACHE[cache_key] = _fetch_center_products(center_id, limit=limit)
-        return _CENTER_PRODUCTS_CACHE[cache_key]
+        entry = _CENTER_PRODUCTS_CACHE.get(cache_key)
+        if entry is not None and (time.monotonic() - entry[0]) < _center_products_ttl():
+            return entry[1]
+
+    # Deliberately outside the lock: this is a 20s request, and holding a
+    # process-wide lock across it stalls every other forecast load behind it.
+    # Two threads racing here merely repeat an idempotent GET.
+    products = _fetch_center_products(center_id, limit=limit)
+    with _CENTER_PRODUCTS_LOCK:
+        _CENTER_PRODUCTS_CACHE[cache_key] = (time.monotonic(), products)
+    return products
 
 
 def _pick_latest_nwac_product_id(products, zone_id: str = None, zone_name: str = None) -> int:

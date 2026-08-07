@@ -146,6 +146,12 @@ Environment variables:
 - SNOW_API_TIMEOUT_SECONDS
   Positive request timeout in seconds. Defaults to 10.
 
+- AVY_PRODUCTS_TTL_SECONDS
+  How long a US avalanche centre's forecast-product list stays cached. Defaults
+  to 900 (15 minutes). NWAC and CAIC mint a new product id each forecast cycle,
+  so this list is what tells the appliance which forecast is current -- it is
+  not static reference data and must not be cached for the life of the process.
+
 Remote health monitoring is anonymous, optional, and one-way. On first launch,
 the Pi generates a random installation ID in gitignored `conf/health.json` and
 reports application version, selected resort, process uptime, last successful

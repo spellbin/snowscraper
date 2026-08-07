@@ -125,6 +125,72 @@ class AvalancheNormalizationTests(unittest.TestCase):
             21,
         )
 
+    def test_a_stale_product_list_is_refetched(self):
+        """NWAC/CAIC mint a NEW product id per forecast cycle.
+
+        The list was memoized for the life of the process, so an appliance that
+        runs for months kept selecting whichever forecast was live when it
+        booted and presented it as current.
+        """
+        avalanche.clear_center_products_cache()
+        first = [{"id": 1, "forecast_zone": [{"name": "Stevens Pass"}]}]
+        second = [{"id": 2, "forecast_zone": [{"name": "Stevens Pass"}]}]
+
+        with mock.patch.object(avalanche, "_fetch_center_products", return_value=first) as fetch:
+            self.assertEqual(avalanche._get_center_products("NWAC"), first)
+            # Inside the window: served from cache, no second request.
+            self.assertEqual(avalanche._get_center_products("NWAC"), first)
+            self.assertEqual(fetch.call_count, 1)
+
+        with mock.patch.object(avalanche, "_center_products_ttl", return_value=0.0):
+            with mock.patch.object(
+                avalanche, "_fetch_center_products", return_value=second
+            ) as fetch:
+                self.assertEqual(avalanche._get_center_products("NWAC"), second)
+                self.assertEqual(fetch.call_count, 1)
+        avalanche.clear_center_products_cache()
+
+    def test_an_expired_refresh_failure_does_not_serve_the_old_forecast(self):
+        """For a danger rating, "unavailable" is honest; silently old is not."""
+        avalanche.clear_center_products_cache()
+        products = [{"id": 1, "forecast_zone": [{"name": "Stevens Pass"}]}]
+        with mock.patch.object(avalanche, "_fetch_center_products", return_value=products):
+            avalanche._get_center_products("NWAC")
+
+        with mock.patch.object(avalanche, "_center_products_ttl", return_value=0.0):
+            with mock.patch.object(
+                avalanche,
+                "_fetch_center_products",
+                side_effect=RuntimeError("NWAC products HTTP 503"),
+            ):
+                with self.assertRaises(RuntimeError):
+                    avalanche._get_center_products("NWAC")
+        avalanche.clear_center_products_cache()
+
+    def test_the_product_list_is_not_fetched_under_the_shared_lock(self):
+        """A 20s request under a process-wide lock stalls every other load."""
+        avalanche.clear_center_products_cache()
+        observed = []
+
+        def slow_fetch(center_id, limit=None):
+            # Probed from ANOTHER thread: the lock is an RLock, so the calling
+            # thread could re-acquire its own lock and see nothing wrong.
+            def probe():
+                got = avalanche._CENTER_PRODUCTS_LOCK.acquire(blocking=False)
+                observed.append(got)
+                if got:
+                    avalanche._CENTER_PRODUCTS_LOCK.release()
+
+            prober = threading.Thread(target=probe)
+            prober.start()
+            prober.join(5)
+            return [{"id": 1}]
+
+        with mock.patch.object(avalanche, "_fetch_center_products", side_effect=slow_fetch):
+            avalanche._get_center_products("NWAC")
+        self.assertEqual(observed, [True], "the shared lock was held across the network call")
+        avalanche.clear_center_products_cache()
+
     def test_resort_point_uses_api_backed_metadata_loader(self):
         api_only = {
             "API-only Resort": {
