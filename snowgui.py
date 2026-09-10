@@ -60,6 +60,7 @@ from snowscraper_app.brightness import (
 from snowscraper_app.storage import (
     atomic_write_json as _atomic_write_json,
     atomic_write_text as _atomic_write_text,
+    resolve_seeded_path,
 )
 from snowscraper_app.alarms import (
     ALARM_CONF_FILE,
@@ -229,7 +230,17 @@ except Exception as e:
 # Constants & Config
 # ----------------------------
 VERBOSE = False # set True for extra console logging ie. each touch read
-CALIBRATION_FILE = "/home/pi/snowscraper/conf/touch_calibration.json"
+
+# Touch calibration is device-specific, so it is written to a gitignored file.
+# Releases install by `git checkout -f <tag>`, which restores every TRACKED file
+# to its committed content -- including one the appliance had rewritten.  While
+# calibration lived in the tracked file, updating an appliance silently reverted
+# whoever had run the 4-point calibration back to the values that happened to be
+# committed, and because that file still existed afterwards the on-device
+# calibration never re-triggered to correct it.  The tracked file remains as the
+# seed for a fresh install, and is now only ever read.
+CALIBRATION_FILE = "/home/pi/snowscraper/conf/touch_calibration.local.json"
+CALIBRATION_SEED_FILE = "/home/pi/snowscraper/conf/touch_calibration.json"
 DEV_MODE = False  # set True to avoid hitting live scrapers
 print(f"[BOOT] DEV_MODE = {DEV_MODE}")
 
@@ -809,6 +820,16 @@ class XPT2046:
             pass
 
 
+def _calibration_read_path():
+    """Return the calibration file to read, or None if this device has none.
+
+    Prefers the device-local file and falls back to the committed seed, so a
+    fresh install keeps working without an interactive calibration pass and an
+    appliance that has calibrated keeps its own values across updates.
+    """
+    return resolve_seeded_path(CALIBRATION_FILE, CALIBRATION_SEED_FILE)
+
+
 class TouchCalibrator:
     """Persist and apply raw XPT2046 bounds for the 320x240 display.
 
@@ -834,9 +855,10 @@ class TouchCalibrator:
         return (max(0, min(device.width - 1, sx)), max(0, min(device.height - 1, sy)))
 
     def load(self):
-        if not os.path.exists(CALIBRATION_FILE):
+        path = _calibration_read_path()
+        if path is None:
             return False
-        with open(CALIBRATION_FILE, "r") as f:
+        with open(path, "r") as f:
             data = json.load(f)
         self.x_min = int(data.get("x_min", 0))
         self.x_max = int(data.get("x_max", 4095))
@@ -854,12 +876,13 @@ class TouchCalibrator:
         self.x_min, self.y_min, self.x_max, self.y_max = 0, 0, 4095, 4095
 
     def load_safe(self):
-        if not os.path.exists(CALIBRATION_FILE):
+        path = _calibration_read_path()
+        if path is None:
             print("[Calib] No calibration file found.")
             self.reset_defaults()
             return False
         try:
-            with open(CALIBRATION_FILE, "r") as f:
+            with open(path, "r") as f:
                 data = json.load(f)
             self.x_min = int(data.get("x_min", 0))
             self.x_max = int(data.get("x_max", 4095))

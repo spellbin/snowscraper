@@ -44,3 +44,22 @@ def atomic_write_text(content: str, path: str) -> None:
 def atomic_write_json(payload, path: str, *, indent=None) -> None:
     """Serialize ``payload`` as JSON and atomically replace ``path``."""
     atomic_write_text(json.dumps(payload, indent=indent), path)
+
+
+def resolve_seeded_path(local_path: str, seed_path: str):
+    """Return the device-local file if present, else the committed seed.
+
+    Releases install with ``git checkout -f <tag>``, which restores every
+    TRACKED file to its committed content -- including one this appliance had
+    rewritten since the last update.  Settings the device discovers about
+    ITSELF therefore cannot live in a tracked file: they must be written to a
+    gitignored path, with the tracked file demoted to a read-only seed used
+    only until the device has learned its own value.
+
+    Returns ``None`` when neither exists, which callers treat as "this device
+    has not been configured yet" rather than as an error.
+    """
+    for path in (local_path, seed_path):
+        if path and os.path.exists(path):
+            return path
+    return None

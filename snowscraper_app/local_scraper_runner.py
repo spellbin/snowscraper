@@ -16,6 +16,19 @@ MAX_HTML_BYTES = 2 * 1024 * 1024
 USER_AGENT = "SnowGUI-LocalScraper/1.0 (+https://www.snowscraper.ca)"
 MAX_DIAGNOSTIC_CHARS = 8192
 
+# The GUI service runs under MemoryMax=250M with OOMPolicy=restart, and this
+# runner is a child inside that same cgroup -- so memory spent parsing here is
+# charged against the touchscreen's budget.  BeautifulSoup builds a full node
+# tree, which for a tag-dense document near MAX_HTML_BYTES measured at roughly
+# 100 MB resident; added to the GUI's own image buffers that is enough to cross
+# the cgroup limit and have systemd restart the display mid-scrape.
+#
+# Capping the child's address space converts that whole-application restart into
+# a MemoryError confined to this process.  The parent already treats a non-zero
+# exit as a module failure and falls back to the Snow API, so a module that is
+# too greedy costs one resort's local override instead of the screen.
+MAX_ADDRESS_SPACE_BYTES = 160 * 1024 * 1024
+
 
 class _CappedDiagnosticLog:
     """File-like sink that prevents accidental print loops filling Pi memory."""
@@ -131,15 +144,45 @@ def execute(module_directory, fixture_path=None) -> dict:
     }
 
 
+def _limit_address_space(limit=MAX_ADDRESS_SPACE_BYTES) -> None:
+    """Cap this process's address space so a runaway parse cannot reach the GUI.
+
+    Fails soft: ``resource`` is Unix-only, and a host may already impose a
+    lower ceiling that we must not raise.  Either way the scrape still runs --
+    the cap is a safety net, not a precondition.
+    """
+    try:
+        import resource
+    except ImportError:
+        return
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        ceiling = limit if hard == resource.RLIM_INFINITY else min(limit, hard)
+        if soft == resource.RLIM_INFINITY or soft > ceiling:
+            resource.setrlimit(resource.RLIMIT_AS, (ceiling, hard))
+    except (ValueError, OSError) as exc:
+        print(f"[LocalScraper] could not cap child memory: {exc}", file=sys.stderr)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("module_directory")
     parser.add_argument("--fixture")
     args = parser.parse_args(argv)
+    _limit_address_space()
     try:
         payload = execute(args.module_directory, args.fixture)
     except LocalScraperError as exc:
         print(str(exc), file=sys.stderr)
+        return 1
+    except MemoryError:
+        # Hit the address-space cap above rather than the cgroup limit, so the
+        # touchscreen is still running to show this.
+        print(
+            "module exceeded its memory limit; the page is likely too large to "
+            "parse on this device",
+            file=sys.stderr,
+        )
         return 1
     print(json.dumps(payload, separators=(",", ":")))
     return 0

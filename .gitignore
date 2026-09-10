@@ -2,6 +2,7 @@
 conf/skihill.conf
 conf/alarm.conf
 conf/health.json
+conf/touch_calibration.local.json
 conf/local_scrapers/
 
 # --- Python runtime cache ---

@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 
 import scraperctl
-from snowscraper_app import local_scrapers, resorts
+from snowscraper_app import local_scraper_runner, local_scrapers, resorts
 
 
 MANIFEST = """[local_scraper]
@@ -207,6 +207,49 @@ class ScraperCtlTests(unittest.TestCase):
             self.assertEqual(scraperctl.main(common + ["list"]), 0)
             self.assertEqual(scraperctl.main(common + ["disable", "beginner_peak"]), 0)
             self.assertFalse(local_scrapers.load_module(module.directory).enabled)
+
+
+class RunnerMemoryCapTests(unittest.TestCase):
+    """The runner shares the GUI's MemoryMax cgroup, so it caps itself.
+
+    Without the cap a tag-dense page near MAX_HTML_BYTES can push the cgroup
+    past its limit, and OOMPolicy=restart takes the touchscreen down with it.
+    """
+
+    def test_the_cap_leaves_headroom_under_the_service_memory_limit(self):
+        # setup_service.sh writes MemoryMax=250M for snowscraper.service.
+        self.assertLess(
+            local_scraper_runner.MAX_ADDRESS_SPACE_BYTES,
+            250 * 1024 * 1024,
+            "a child allowed the whole cgroup budget can still OOM the GUI",
+        )
+
+    def test_it_lowers_an_unlimited_soft_limit(self):
+        resource = importlib.import_module("resource")
+        applied = []
+        with mock.patch.object(
+            resource, "getrlimit", return_value=(resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+        ):
+            with mock.patch.object(resource, "setrlimit", lambda *a: applied.append(a)):
+                local_scraper_runner._limit_address_space()
+        self.assertEqual(
+            applied,
+            [(resource.RLIMIT_AS,
+              (local_scraper_runner.MAX_ADDRESS_SPACE_BYTES, resource.RLIM_INFINITY))],
+        )
+
+    def test_it_never_raises_a_stricter_limit_the_host_already_set(self):
+        resource = importlib.import_module("resource")
+        stricter = local_scraper_runner.MAX_ADDRESS_SPACE_BYTES // 2
+        with mock.patch.object(resource, "getrlimit", return_value=(stricter, stricter)):
+            with mock.patch.object(resource, "setrlimit") as setrlimit:
+                local_scraper_runner._limit_address_space()
+        setrlimit.assert_not_called()
+
+    def test_a_failure_to_cap_does_not_stop_the_scrape(self):
+        resource = importlib.import_module("resource")
+        with mock.patch.object(resource, "getrlimit", side_effect=OSError("denied")):
+            local_scraper_runner._limit_address_space()  # must not raise
 
 
 if __name__ == "__main__":

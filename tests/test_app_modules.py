@@ -812,5 +812,63 @@ class SystemContractTests(unittest.TestCase):
         self.assertIn("VER=v1.2.3", launched_command)
 
 
+class DeviceLocalSettingsTests(unittest.TestCase):
+    """A release runs `git checkout -f <tag>`, which reverts TRACKED files.
+
+    Anything the appliance discovers about itself must therefore be written to
+    a gitignored path, or every update silently restores the committed value.
+    """
+
+    def test_the_device_local_file_wins_over_the_committed_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp) / "touch_calibration.json"
+            local = Path(tmp) / "touch_calibration.local.json"
+            seed.write_text("seed")
+            local.write_text("device")
+            self.assertEqual(storage.resolve_seeded_path(str(local), str(seed)), str(local))
+
+    def test_a_fresh_install_falls_back_to_the_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp) / "touch_calibration.json"
+            local = Path(tmp) / "touch_calibration.local.json"
+            seed.write_text("seed")
+            self.assertEqual(storage.resolve_seeded_path(str(local), str(seed)), str(seed))
+
+    def test_no_files_means_unconfigured_rather_than_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(
+                storage.resolve_seeded_path(
+                    str(Path(tmp) / "missing.local.json"), str(Path(tmp) / "missing.json")
+                )
+            )
+
+    def test_an_update_cannot_revert_a_calibrated_device(self):
+        """The regression itself: checkout -f rewrites the seed, not the local file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp) / "touch_calibration.json"
+            local = Path(tmp) / "touch_calibration.local.json"
+            seed.write_text("committed")
+            local.write_text("calibrated-on-this-device")
+            seed.write_text("committed")  # what `git checkout -f <tag>` does
+            resolved = storage.resolve_seeded_path(str(local), str(seed))
+            self.assertEqual(Path(resolved).read_text(), "calibrated-on-this-device")
+
+    def test_settings_written_by_the_appliance_are_gitignored(self):
+        """Re-tracking any of these re-introduces the revert-on-update bug."""
+        ignored = set(
+            line.strip()
+            for line in (Path(__file__).resolve().parents[1] / ".gitignore").read_text().splitlines()
+            if line.strip() and not line.startswith("#")
+        )
+        for path in (
+            "conf/skihill.conf",
+            "conf/alarm.conf",
+            "conf/health.json",
+            "conf/touch_calibration.local.json",
+            "conf/local_scrapers/",
+        ):
+            self.assertIn(path, ignored, f"{path} must stay gitignored")
+
+
 if __name__ == "__main__":
     unittest.main()

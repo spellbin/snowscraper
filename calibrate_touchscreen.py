@@ -8,7 +8,7 @@ Target: Raspberry Pi Zero 2 W, Python 3.9
 - Reads raw touch from XPT2046 on SPI bus 0, device 1 (same as your code).
 - Draws prompts on the ILI9341 via luma.lcd exactly like the app.
 - Writes JSON: {"x_min": ..., "x_max": ..., "y_min": ..., "y_max": ...}
-- Always saves to ./touch_calibration.json alongside snowgui.py
+- Always saves to ./conf/touch_calibration.local.json alongside snowgui.py
 """
 
 import os
@@ -30,7 +30,10 @@ from luma.core.render import canvas
 # Constants / Paths
 # ----------------------------
 HERE = Path(__file__).resolve().parent
-CALIBRATION_FILE = HERE / "conf/touch_calibration.json"   # match Snow Scraper location & name
+# Device-local and gitignored, matching snowgui.CALIBRATION_FILE: a release
+# installs with `git checkout -f <tag>`, which would revert calibration written
+# to the tracked conf/touch_calibration.json seed.
+CALIBRATION_FILE = HERE / "conf/touch_calibration.local.json"
 LCD_WIDTH = 320
 LCD_HEIGHT = 240
 LCD_ROTATE = 0  # set to 0/90/180/270 to match your Snow Scraper
