@@ -5,6 +5,14 @@ conf/health.json
 conf/touch_calibration.local.json
 conf/local_scrapers/
 
+# --- Device-recorded data and logs ---
+# Tracked files are restored by the `git checkout -f <tag>` a release runs, so
+# anything the appliance itself records must be ignored or it is lost on update.
+logs/snow_log.local.json
+logs/snow_log.json
+logs/snowgui.log*
+logs/watchdog.log
+
 # --- Python runtime cache ---
 __pycache__/
 *.py[cod]

@@ -33,7 +33,7 @@ from .avalanche import (
     _load_resort_meta as _load_local_resort_meta,
     _normalize_resort_meta,
 )
-from .storage import atomic_write_json, atomic_write_text
+from .storage import atomic_write_json, atomic_write_text, resolve_seeded_path
 from .health import health_reporter
 from .local_scrapers import (
     LocalScraperError,
@@ -43,7 +43,15 @@ from .local_scrapers import (
 )
 
 
-SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.json"
+# Each appliance's rolling snow history is DEVICE data, so it is written to a
+# gitignored path.  A release installs with `git checkout -f <tag>`, which
+# restores every tracked file: while this history lived at the tracked
+# logs/snow_log.json, every update silently replaced a season of readings with
+# whatever stub happened to be committed.  The legacy path is still READ so an
+# appliance updating from an older build carries its history forward on the
+# first log write after the update.
+SNOW_LOG_FILE = "/home/pi/snowscraper/logs/snow_log.local.json"
+SNOW_LOG_LEGACY_FILE = "/home/pi/snowscraper/logs/snow_log.json"
 COUNTRY_CONF_FILE = "conf/country.conf"
 REGION_CONF_FILE = "conf/region.conf"
 ALL_COUNTRIES_LABEL = "All Countries"
@@ -550,7 +558,7 @@ def fetch_snow_history(name: str) -> dict:
         if module is None:
             raise
         try:
-            with open(SNOW_LOG_FILE, "r", encoding="utf-8") as history_file:
+            with open(_snow_log_read_path(), "r", encoding="utf-8") as history_file:
                 local_log = json.load(history_file)
         except (OSError, ValueError, TypeError):
             local_log = {}
@@ -574,6 +582,15 @@ def _load_resort_json(name: str) -> dict:
     """Compatibility wrapper for the former static-JSON loader."""
     return fetch_current_snow(name)
 
+def _snow_log_read_path():
+    """Path to read snow history from, or None when this device has none yet.
+
+    Prefers the device-local file and falls back to the legacy tracked path, so
+    a history recorded before this change survives into the first write.
+    """
+    return resolve_seeded_path(SNOW_LOG_FILE, SNOW_LOG_LEGACY_FILE)
+
+
 def log_snow_data(hill):
     """
     Writes current reading and keeps a history of daily readings for each mountain.
@@ -594,10 +611,12 @@ def log_snow_data(hill):
     today = _today_str()
     log_data = {}
 
-    # Load existing log if present
-    if os.path.exists(SNOW_LOG_FILE):
+    # Load existing log if present, adopting a pre-update history when the
+    # device-local file does not exist yet.
+    existing = _snow_log_read_path()
+    if existing:
         try:
-            with open(SNOW_LOG_FILE, "r") as f:
+            with open(existing, "r") as f:
                 log_data = json.load(f)
         except Exception as e:
             print(f"[SnowLog] Error reading log: {e}")

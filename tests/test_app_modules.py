@@ -8,6 +8,7 @@ here without making external calls.
 
 import importlib
 import json
+import subprocess
 import sys
 import tempfile
 import threading
@@ -866,8 +867,78 @@ class DeviceLocalSettingsTests(unittest.TestCase):
             "conf/health.json",
             "conf/touch_calibration.local.json",
             "conf/local_scrapers/",
+            "logs/snow_log.local.json",
+            "logs/snow_log.json",
         ):
             self.assertIn(path, ignored, f"{path} must stay gitignored")
+
+    def test_no_file_the_appliance_writes_is_tracked_by_git(self):
+        """The defect in one check: a tracked file the device writes is reverted."""
+        repo = Path(__file__).resolve().parents[1]
+        tracked = set(
+            subprocess.run(
+                ["git", "-C", str(repo), "ls-files"],
+                capture_output=True, text=True, check=True,
+            ).stdout.split()
+        )
+        for path in (
+            "conf/skihill.conf", "conf/alarm.conf", "conf/health.json",
+            "conf/touch_calibration.local.json",
+            "logs/snow_log.local.json", "logs/snow_log.json",
+            "logs/snowgui.log", "logs/watchdog.log",
+        ):
+            self.assertNotIn(
+                path, tracked,
+                f"{path} is written by the appliance; tracking it means every "
+                f"`git checkout -f <tag>` update discards what the device recorded",
+            )
+
+
+class SnowLogMigrationTests(unittest.TestCase):
+    """Snow history moved to a gitignored path; it must survive that move."""
+
+    def setUp(self):
+        self._orig = (resorts.SNOW_LOG_FILE, resorts.SNOW_LOG_LEGACY_FILE)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.legacy = str(Path(self.tmp.name) / "snow_log.json")
+        self.local = str(Path(self.tmp.name) / "snow_log.local.json")
+        resorts.SNOW_LOG_FILE = self.local
+        resorts.SNOW_LOG_LEGACY_FILE = self.legacy
+
+    def tearDown(self):
+        resorts.SNOW_LOG_FILE, resorts.SNOW_LOG_LEGACY_FILE = self._orig
+        self.tmp.cleanup()
+
+    def _season(self):
+        return {"Revelstoke": {
+            "current": {"date": "2026-03-02", "newSnow": 18},
+            "history": [{"date": "2026-03-01", "newSnow": 12},
+                        {"date": "2026-03-02", "newSnow": 18}]}}
+
+    def _log_once(self):
+        hill = resorts.skiHill("Revelstoke", "", 5, 20, 100)
+        hill.newSnow, hill.weekSnow, hill.baseSnow = 7, 30, 140
+        resorts.log_snow_data(hill)
+
+    def test_a_history_recorded_before_the_move_is_carried_forward(self):
+        Path(self.legacy).write_text(json.dumps(self._season()))
+        self._log_once()
+        carried = json.loads(Path(self.local).read_text())["Revelstoke"]["history"]
+        self.assertEqual([row["date"] for row in carried][:2],
+                         ["2026-03-01", "2026-03-02"])
+
+    def test_the_device_local_file_wins_once_it_exists(self):
+        Path(self.legacy).write_text(json.dumps(self._season()))
+        self._log_once()
+        # what `git checkout -f <tag>` would do to the old tracked path
+        Path(self.legacy).write_text(json.dumps(
+            {"Sun Peaks": {"current": {}, "history": []}}))
+        self.assertEqual(resorts._snow_log_read_path(), self.local)
+        kept = json.loads(Path(resorts._snow_log_read_path()).read_text())
+        self.assertIn("Revelstoke", kept)
+
+    def test_a_fresh_install_starts_empty_rather_than_seeded(self):
+        self.assertIsNone(resorts._snow_log_read_path())
 
 
 if __name__ == "__main__":

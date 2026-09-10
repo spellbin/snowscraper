@@ -193,11 +193,14 @@ Optional overrides:
   Initial default used only when `conf/health.json` does not exist. Set to 0,
   false, no, off, or disabled to create a new installation opted out.
 
-- logs/snow_log.json
-  Rolling daily snowfall logs per resort.
+- logs/snow_log.local.json
+  Rolling daily snowfall logs per resort. Gitignored, so an update never discards
+  a recorded season. A history written by an older build at the legacy
+  `logs/snow_log.json` path is read once and carried forward on the next log
+  write, then that legacy file is ignored.
 
 - logs/snowgui.log
-  Rotating application log.
+  Rotating application log. Gitignored.
 
 - heartbeat.txt
   Updated by snowgui.py; symlinked to /run/heartbeat.txt for watchdogs.
@@ -277,10 +280,12 @@ GitHub release is newer than its VERSION file, and someone taps UPDATE.
 An update installs with `git checkout -f tags/<version>`, which restores every
 TRACKED file to its committed content. Gitignored files are left alone, so the
 selected resort, alarms, brightness, anonymous-health ID and opt-out, local
-scraper modules, and touch calibration all survive. Anything the appliance
-discovers about ITSELF must therefore be gitignored -- see
-conf/touch_calibration.local.json above for the pattern, and the
-`resolve_seeded_path` helper in snowscraper_app/storage.py.
+scraper modules, recorded snow history, and touch calibration all survive.
+Anything the appliance records or discovers about ITSELF must therefore be
+gitignored -- see conf/touch_calibration.local.json and logs/snow_log.local.json
+above for the pattern, and the `resolve_seeded_path` helper in
+snowscraper_app/storage.py. `tests/test_app_modules.py` fails if any such file
+becomes tracked again.
 
 To manually update:
 

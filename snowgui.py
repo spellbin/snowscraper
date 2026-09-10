@@ -467,6 +467,35 @@ def _load_font(path="fonts/pixem.otf", size=18):
         return ImageFont.load_default()
 
 
+# Geometry of the four button plates painted into images/config.png, measured
+# from the artwork: 32px plates on a 35px pitch, spanning x56-265.  Screens that
+# label those plates centre on these rather than a fixed left margin -- a
+# hard-coded x with variable-width strings gives every row a different right
+# margin, and the longer ones run off the plate into the icon column.
+CONFIG_PLATE_CENTRE_X = 160
+CONFIG_PLATE_CENTRES_Y = (116, 151, 186, 221)
+# The bottom plate is a single piece of artwork shared by two controls.
+CONFIG_PLATE_HALF_CENTRES_X = (108, 213)
+# Usable width inside a plate's bevel; wider strings collide with the artwork.
+CONFIG_PLATE_INNER_W = 190
+
+
+def _draw_centred_text(draw, cx, cy, text, font, fill):
+    """Draw ``text`` centred on its INK at (cx, cy).
+
+    ``anchor="mm"`` centres on the font's metric box instead, and pixem.otf is
+    an all-caps face whose glyphs sit above that box -- enough to land a pixel
+    high on every row of a 240px panel, consistently.
+    """
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    draw.text(
+        (cx - (left + right) / 2, cy - (top + bottom) / 2),
+        text,
+        font=font,
+        fill=fill,
+    )
+
+
 # ----------------------------
 # Alarm config
 # ----------------------------
@@ -2743,9 +2772,14 @@ class AnonymousHealthScreen(Screen):
             self.bg_image = Image.new("RGB", (device.width, device.height), "black")
             self.image_missing = True
 
-        # The complete centre bar is a generous 200×32 px touch target. The
-        # lower-right artwork retains the same Back target as other config pages.
-        self.add_button(Button(60, 132, 260, 168, "Toggle anonymous health", self._toggle))
+        # The whole sharing plate is the toggle: a generous 205x32 px target
+        # aligned to the artwork rather than inset from it.
+        self.add_button(Button(58, 136, 263, 168, "Toggle anonymous health", self._toggle))
+        # The up/down artwork sits unused on most config pages; here it drives
+        # the same preference, so the arrows a customer can see actually do
+        # something and the choice does not depend on hitting one small bar.
+        self.add_button(Button(268, 104, 302, 136, "Sharing on", lambda: self._apply(True)))
+        self.add_button(Button(268, 138, 302, 170, "Sharing off", lambda: self._apply(False)))
         self.add_button(Button(
             270, 190, 300, 220,
             "Back",
@@ -2754,8 +2788,10 @@ class AnonymousHealthScreen(Screen):
             ),
         ))
 
-    def _toggle(self):
-        enabled = not health_reporter.reporting_enabled
+    def _apply(self, enabled):
+        """Persist a specific state and redraw. Setting the current state is a
+        no-op the customer still sees confirmed, which is what makes the arrows
+        feel reliable rather than dead."""
         saved = health_reporter.set_reporting_enabled(enabled)
         if saved:
             state = "on" if enabled else "off"
@@ -2766,23 +2802,35 @@ class AnonymousHealthScreen(Screen):
             AnonymousHealthScreen(self.screen_manager, self.screen_manager.hill)
         )
 
+    def _toggle(self):
+        self._apply(not health_reporter.reporting_enabled)
+
     def draw(self, draw_obj):
         img = self.bg_image.copy()
         draw = ImageDraw.Draw(img)
-        title_font = _load_font(size=17)
-        body_font = _load_font(size=14)
+        title_font = _load_font(size=15)
+        body_font = _load_font(size=15)
         detail_font = _load_font(size=12)
         enabled = health_reporter.reporting_enabled
 
-        draw.text((73, 105), "Anonymous Health", fill="white", font=title_font)
-        draw.text(
-            (73, 140),
-            f"Sharing: {'ON' if enabled else 'OFF'}",
-            fill="#8BE28B" if enabled else "#D8D8D8",
-            font=body_font,
+        title_y, sharing_y, hint_y = CONFIG_PLATE_CENTRES_Y[:3]
+        _draw_centred_text(
+            draw, CONFIG_PLATE_CENTRE_X, title_y,
+            "Anonymous Health", title_font, "white",
         )
-        draw.text((73, 175), "No hostname or account", fill="white", font=detail_font)
-        draw.text((73, 207), "Tap sharing to change", fill="white", font=detail_font)
+        # OFF was previously near-white, which read as another line of copy
+        # rather than as a state; it is now visibly muted against the hint.
+        _draw_centred_text(
+            draw, CONFIG_PLATE_CENTRE_X, sharing_y,
+            f"Sharing: {'ON' if enabled else 'OFF'}",
+            body_font, "#8BE28B" if enabled else "#9AA7B8",
+        )
+        # Dimmer than the state above so the instruction does not read as a
+        # third button on identical artwork.
+        _draw_centred_text(
+            draw, CONFIG_PLATE_CENTRE_X, hint_y,
+            "Tap or use arrows", detail_font, "#B9C7D6",
+        )
 
         if self.image_missing:
             draw.text((8, 8), "config.png missing", fill="white", font=detail_font)
@@ -2810,17 +2858,21 @@ class ImageScreen(Screen):
         )
 
         if image_file == "images/config.png":
+            # Targets aligned to the painted plates (x56-265, 32px on a 35px
+            # pitch) instead of being inset from them, so the whole visible
+            # control is tappable on a resistive panel.
             self.add_button(
-                Button(60, 140, 260, 165, "Select Resort", lambda: screen_manager.set_screen(SelectCountryScreen(screen_manager, screen_manager.hill)))
+                Button(58, 136, 263, 168, "Select Resort", lambda: screen_manager.set_screen(SelectCountryScreen(screen_manager, screen_manager.hill)))
             )
             self.add_button(
-                Button(60, 175, 260, 200, "Config WiFi", lambda: screen_manager.set_screen(ConfigWiFiScreen(screen_manager, screen_manager.hill)))
+                Button(58, 171, 263, 203, "Config WiFi", lambda: screen_manager.set_screen(ConfigWiFiScreen(screen_manager, screen_manager.hill)))
+            )
+            # The bottom plate is one piece of artwork split into two controls.
+            self.add_button(
+                Button(58, 206, 159, 237, "Set Alarm", lambda: screen_manager.set_screen(AlarmScreen(screen_manager, screen_manager.hill)))
             )
             self.add_button(
-                Button(60, 202, 160, 232, "Set Alarm", lambda: screen_manager.set_screen(AlarmScreen(screen_manager, screen_manager.hill)))
-            )
-            self.add_button(
-                Button(160, 202, 260, 232, "Privacy", lambda: screen_manager.set_screen(AnonymousHealthScreen(screen_manager, screen_manager.hill)))
+                Button(160, 206, 263, 237, "Privacy", lambda: screen_manager.set_screen(AnonymousHealthScreen(screen_manager, screen_manager.hill)))
             )
 
     def draw(self, draw_obj):
@@ -2829,14 +2881,18 @@ class ImageScreen(Screen):
 
         if self.image_file == "images/config.png":
             font = _load_font(size=18)
-            draw.text((73, 105), "Configuration", fill="white", font=font)
-            draw.text((73, 140), "Select Resort", fill="white", font=font)
-            draw.text((73, 175), "Config Wifi", fill="white", font=font)
+            title_y, resort_y, wifi_y, split_y = CONFIG_PLATE_CENTRES_Y
+            _draw_centred_text(draw, CONFIG_PLATE_CENTRE_X, title_y, "Configuration", font, "white")
+            _draw_centred_text(draw, CONFIG_PLATE_CENTRE_X, resort_y, "Select Resort", font, "white")
+            _draw_centred_text(draw, CONFIG_PLATE_CENTRE_X, wifi_y, "Config Wifi", font, "white")
             # Split the final artwork slot so existing alarm access remains in
             # place while the optional reporting control is easy to discover.
+            # Each label centres on its own half of that shared plate; pinning
+            # both to a fixed x left them visibly off-centre and unbalanced.
             small_font = _load_font(size=14)
-            draw.text((73, 207), "Alarm", fill="white", font=small_font)
-            draw.text((168, 207), "Privacy", fill="white", font=small_font)
+            alarm_x, privacy_x = CONFIG_PLATE_HALF_CENTRES_X
+            _draw_centred_text(draw, alarm_x, split_y, "Alarm", small_font, "white")
+            _draw_centred_text(draw, privacy_x, split_y, "Privacy", small_font, "white")
 
         if self.image_missing:
             font2 = ImageFont.load_default()
