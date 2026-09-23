@@ -119,8 +119,13 @@ sharing checklist are in `docs/LOCAL_SCRAPERS.md`.
 
 Configuration Files
 
+- conf/resort_slug.conf
+  Stores the selected resort slug. It is authoritative in current releases.
+
 - conf/skihill.conf
-  Stores selected resort index.
+  Retains the numeric selection used through v2.7.0. Current releases migrate
+  it only once its catalog position can be resolved, then keep it synchronized
+  solely so a software rollback does not silently select another resort.
 
 - conf/alarm.conf
   Stores alarm settings and thresholds.

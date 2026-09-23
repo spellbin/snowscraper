@@ -310,6 +310,104 @@ class ResortSnowApiTests(unittest.TestCase):
         self.assertEqual(list(meta), ["Sun Peaks", "Whistler"])
         self.assertEqual(meta["Sun Peaks"]["slug"], "Sun_Peaks")
 
+    def test_legacy_resort_index_migrates_atomically_to_slug(self):
+        meta = {
+            "Sun Peaks": {"slug": "Sun_Peaks"},
+            "Whistler": {"slug": "Whistler"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            selected = Path(tmp) / "resort_slug.conf"
+            legacy = Path(tmp) / "skihill.conf"
+            legacy.write_text("1", encoding="utf-8")
+            self.assertEqual(
+                resorts.current_resort_name(meta, str(selected), str(legacy)),
+                "Whistler",
+            )
+            self.assertEqual(selected.read_text(encoding="utf-8"), "Whistler")
+            self.assertEqual(legacy.read_text(encoding="utf-8"), "1")
+
+    def test_slug_selection_survives_catalog_reordering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            selected = Path(tmp) / "resort_slug.conf"
+            selected.write_text("Whistler", encoding="utf-8")
+            reordered = {
+                "Whistler": {"slug": "Whistler"},
+                "Sun Peaks": {"slug": "Sun_Peaks"},
+            }
+            self.assertEqual(
+                resorts.current_resort_name(reordered, str(selected)), "Whistler"
+            )
+            self.assertEqual(selected.read_text(encoding="utf-8"), "Whistler")
+
+    def test_unresolved_legacy_index_is_never_clamped_or_overwritten(self):
+        """An offline fallback may have 37 resorts while index 50 is valid in
+        the API catalog. Rewriting it to the fallback's last entry loses the
+        intended selection permanently."""
+        fallback = {
+            "Sun Peaks": {"slug": "Sun_Peaks"},
+            "Whistler": {"slug": "Whistler"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            selected = Path(tmp) / "resort_slug.conf"
+            legacy = Path(tmp) / "skihill.conf"
+            legacy.write_text("50", encoding="utf-8")
+            self.assertEqual(
+                resorts.current_resort_name(fallback, str(selected), str(legacy)),
+                "Resort",
+            )
+            self.assertFalse(selected.exists())
+            self.assertEqual(legacy.read_text(encoding="utf-8"), "50")
+
+    def test_slug_remains_identity_when_catalog_temporarily_omits_it(self):
+        fallback = {"Sun Peaks": {"slug": "Sun_Peaks"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            selected = Path(tmp) / "resort_slug.conf"
+            selected.write_text("Mt_Dobson", encoding="utf-8")
+            self.assertEqual(
+                resorts.current_resort_name(fallback, str(selected)), "Mt Dobson"
+            )
+            self.assertEqual(selected.read_text(encoding="utf-8"), "Mt_Dobson")
+
+    def test_invalid_stored_slug_is_not_used_as_resort_identity(self):
+        fallback = {"Sun Peaks": {"slug": "Sun_Peaks"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            selected = Path(tmp) / "resort_slug.conf"
+            selected.write_text("../../wrong", encoding="utf-8")
+            self.assertEqual(
+                resorts.current_resort_name(fallback, str(selected)), "Resort"
+            )
+            self.assertEqual(selected.read_text(encoding="utf-8"), "../../wrong")
+
+    def test_new_selection_persists_metadata_slug_not_array_position(self):
+        meta = {
+            "Sun Peaks": {"slug": "Sun_Peaks"},
+            "Local Hill": {"slug": "local-hill-custom"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            selected = Path(tmp) / "resort_slug.conf"
+            legacy = Path(tmp) / "skihill.conf"
+            self.assertTrue(
+                resorts.set_current_resort_by_name(
+                    "Local Hill", meta, str(selected), str(legacy)
+                )
+            )
+            self.assertEqual(
+                selected.read_text(encoding="utf-8"), "local-hill-custom"
+            )
+            self.assertEqual(legacy.read_text(encoding="utf-8"), "1")
+
+    def test_fresh_install_persists_first_resort_slug(self):
+        meta = {"Sun Peaks": {"slug": "Sun_Peaks"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            selected = Path(tmp) / "resort_slug.conf"
+            legacy = Path(tmp) / "skihill.conf"
+            self.assertEqual(
+                resorts.current_resort_name(meta, str(selected), str(legacy)),
+                "Sun Peaks",
+            )
+            self.assertEqual(selected.read_text(encoding="utf-8"), "Sun_Peaks")
+            self.assertEqual(legacy.read_text(encoding="utf-8"), "0")
+
     def test_transport_uses_json_headers_timeout_and_configured_base(self):
         payload = {"current": {"newSnow": 3}}
         response = mock.Mock()
@@ -465,11 +563,12 @@ class ResortSnowApiTests(unittest.TestCase):
         self.assertEqual(len(calls), 1, "repeated screen opens stacked up refreshes")
 
     def test_the_first_load_still_blocks_so_boot_gets_the_real_universe(self):
-        """skihill.conf stores an INDEX into this ordering.
+        """A legacy skihill.conf may still store an index into this ordering.
 
         Serving the bundled universe first and swapping to the API one later
-        would silently change which resort that index means, so the very first
-        load -- during startup, before the UI loop -- stays synchronous.
+        could migrate that index against an incomplete list, so the very first
+        load -- during startup, before the UI loop -- stays synchronous when
+        the API is available.
         """
         resorts.clear_resort_meta_cache()
         payload = {"resorts": [{"name": "Whistler", "slug": "Whistler"}]}
@@ -862,6 +961,7 @@ class DeviceLocalSettingsTests(unittest.TestCase):
             if line.strip() and not line.startswith("#")
         )
         for path in (
+            "conf/resort_slug.conf",
             "conf/skihill.conf",
             "conf/alarm.conf",
             "conf/health.json",
@@ -882,7 +982,7 @@ class DeviceLocalSettingsTests(unittest.TestCase):
             ).stdout.split()
         )
         for path in (
-            "conf/skihill.conf", "conf/alarm.conf", "conf/health.json",
+            "conf/resort_slug.conf", "conf/skihill.conf", "conf/alarm.conf", "conf/health.json",
             "conf/touch_calibration.local.json",
             "logs/snow_log.local.json", "logs/snow_log.json",
             "logs/snowgui.log", "logs/watchdog.log",

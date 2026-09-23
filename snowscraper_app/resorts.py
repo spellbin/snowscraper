@@ -5,9 +5,12 @@ small skiHill data object consumed by the GUI. It deliberately does not own the
 currently active hill singleton; snowgui.py retains that process-level lifecycle
 so screen construction and reload timing remain unchanged.
 
-Selection files continue to store the same values:
+Selection files retain their historical paths, but resort identity is now
+stable across catalog changes:
 
-* skihill.conf stores an index into metadata-derived resort order;
+* resort_slug.conf stores the selected resort slug;
+* skihill.conf retains the legacy numeric position for one-time migration and
+  rollback compatibility;
 * country.conf stores the selected country label; and
 * region.conf stores the selected region label.
 
@@ -64,6 +67,8 @@ DEFAULT_SNOW_API_TIMEOUT_SECONDS = 10.0
 API_META_CACHE_SECONDS = 60.0 * 60.0
 OFFLINE_META_RETRY_SECONDS = 60.0
 SNOW_API_USER_AGENT = "SnowGUI/2.3.0"
+SELECTED_RESORT_SLUG_FILE = "conf/resort_slug.conf"
+LEGACY_SELECTED_RESORT_INDEX_FILE = "conf/skihill.conf"
 
 
 class SnowApiError(RuntimeError):
@@ -255,10 +260,9 @@ def load_resort_meta(force_refresh: bool = False) -> dict:
     once a minute. A stale cache is now served immediately and refreshed on a
     worker thread; only two paths still block, and neither is interactive:
 
-      * the very first call, during startup before the UI loop, so boot screens
-        get the canonical universe rather than briefly showing the bundled one
-        (skihill.conf stores an INDEX into this ordering, so swapping the
-        universe underneath a running UI would silently change the selection);
+      * the very first call, during startup before the UI loop, so a legacy
+        numeric selection can be migrated against the canonical universe when
+        the network is available;
       * an explicit force_refresh, which means "I want fresh data now".
     """
     with _meta_cache_lock:
@@ -282,28 +286,47 @@ def load_resort_meta(force_refresh: bool = False) -> dict:
 _load_resort_meta = load_resort_meta
 
 
-def _read_selected_resort_index(path="conf/skihill.conf") -> int:
+def _read_selected_resort_value(path=SELECTED_RESORT_SLUG_FILE) -> Optional[str]:
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             raw = f.read().strip()
-        return max(0, int(raw))
+        return raw or None
+    except FileNotFoundError:
+        return None
     except Exception as e:
-        print(f"[SelectResort] Could not read {path}: {e}. Using 0.")
-        return 0
+        print(f"[SelectResort] Could not read {path}: {e}.")
+        return None
 
 
-def _write_selected_resort_index(index: int, path="conf/skihill.conf") -> bool:
-    """Clamp and persist the selected resort index."""
-    names = get_resort_names()
+def _valid_resort_slug(slug: str) -> bool:
+    slug = str(slug or "").strip()
+    return bool(slug) and not any(
+        char in slug for char in ("/", "\\", "\n", "\r")
+    ) and ".." not in slug
+
+
+def _write_selected_resort_slug(slug: str, path=SELECTED_RESORT_SLUG_FILE) -> bool:
+    """Atomically persist one stable resort slug."""
+    slug = str(slug or "").strip()
+    if not _valid_resort_slug(slug):
+        print(f"[SelectResort] Refusing invalid resort slug {slug!r}.")
+        return False
     try:
-        if names:
-            index = max(0, min(index, len(names) - 1))
-        else:
-            index = 0
-        _atomic_write_text(str(index), path)
+        _atomic_write_text(slug, path)
         return True
     except Exception as e:
         print(f"[SelectResort] Failed to write {path}: {e}")
+        return False
+
+
+def _write_legacy_resort_index(index: int,
+                               path=LEGACY_SELECTED_RESORT_INDEX_FILE) -> bool:
+    """Keep rollback compatibility without using the index as current identity."""
+    try:
+        _atomic_write_text(str(index), path)
+        return True
+    except Exception as e:
+        print(f"[SelectResort] Failed to update legacy index {path}: {e}")
         return False
 
 
@@ -472,23 +495,95 @@ def get_active_resorts(selected_country: str, selected_region: str, meta: dict) 
     return sorted(results, key=lambda s: s.casefold())
 
 
-def current_resort_name() -> str:
-    names = get_resort_names()
+def _name_and_slug_maps(meta: dict):
+    names = get_resort_names(meta)
+    by_slug = {}
+    for name in names:
+        info = meta.get(name) if isinstance(meta, dict) else None
+        slug = _resort_api_slug(name, meta) if isinstance(info, dict) else _resort_slug(name)
+        by_slug.setdefault(slug.casefold(), (name, slug))
+    return names, by_slug
+
+
+def current_resort_name(meta: Optional[dict] = None,
+                        path=SELECTED_RESORT_SLUG_FILE,
+                        legacy_path=LEGACY_SELECTED_RESORT_INDEX_FILE) -> str:
+    """Resolve the persisted slug, migrating a resolvable legacy index once.
+
+    A numeric value larger than the currently available catalog is deliberately
+    left untouched. This matters when an offline fallback contains fewer
+    resorts than the API: clamping or rewriting it would permanently select a
+    different mountain before the canonical catalog returns.
+    """
+    meta = meta if isinstance(meta, dict) else _load_resort_meta()
+    names, by_slug = _name_and_slug_maps(meta)
     if not names:
         return "Resort"
-    idx = max(0, min(_read_selected_resort_index(), len(names) - 1))
-    return names[idx]
+
+    selected = _read_selected_resort_value(path)
+    if selected is None:
+        legacy_value = _read_selected_resort_value(legacy_path)
+        if legacy_value is None:
+            name = names[0]
+            _write_selected_resort_slug(_resort_api_slug(name, meta), path)
+            _write_legacy_resort_index(0, legacy_path)
+            return name
+        try:
+            legacy_index = int(legacy_value)
+            is_legacy_index = str(legacy_index) == legacy_value or (
+                legacy_value.startswith("+") and str(legacy_index) == legacy_value[1:]
+            )
+        except ValueError:
+            is_legacy_index = False
+            legacy_index = -1
+        if not is_legacy_index:
+            print(
+                f"[SelectResort] Legacy selection {legacy_value!r} is not a "
+                "numeric index; leaving it unchanged."
+            )
+            return "Resort"
+        if legacy_index < 0 or legacy_index >= len(names):
+            print(
+                f"[SelectResort] Legacy index {legacy_index} is unresolved by "
+                f"the current {len(names)}-resort catalog; leaving it unchanged."
+            )
+            return "Resort"
+        name = names[legacy_index]
+        slug = _resort_api_slug(name, meta)
+        if _write_selected_resort_slug(slug, path):
+            print(
+                f"[SelectResort] Migrated legacy index {legacy_index} to slug {slug!r}."
+            )
+        return name
+
+    matched = by_slug.get(selected.casefold())
+    if matched:
+        return matched[0]
+
+    # A slug remains the selected identity even when a transient/offline
+    # catalog does not contain it. Returning a readable form is safer than
+    # silently substituting another resort; its API request will either recover
+    # when metadata returns or fail visibly for a genuinely removed resort.
+    if _valid_resort_slug(selected):
+        return selected.replace("_", " ")
+    print(f"[SelectResort] Stored resort slug {selected!r} is invalid.")
+    return "Resort"
 
 
-def set_current_resort_by_name(name: str) -> None:
-    names = get_resort_names()
-    # Persist the global metadata-derived index, not a filtered local index.
-    try:
-        idx = names.index(name)
-    except ValueError:
+def set_current_resort_by_name(name: str, meta: Optional[dict] = None,
+                               path=SELECTED_RESORT_SLUG_FILE,
+                               legacy_path=LEGACY_SELECTED_RESORT_INDEX_FILE) -> bool:
+    meta = meta if isinstance(meta, dict) else _load_resort_meta()
+    names = get_resort_names(meta)
+    if name not in names:
         print(f"[SelectResort] Unknown resort name '{name}'; keeping existing selection.")
-        return
-    _write_selected_resort_index(idx)
+        return False
+    if not _write_selected_resort_slug(_resort_api_slug(name, meta), path):
+        return False
+    # Best effort only: current code reads the slug. Keeping the old index in
+    # sync lets an operator roll back to v2.7.0 without silently selecting 0.
+    _write_legacy_resort_index(names.index(name), legacy_path)
+    return True
 
 
 def cycle_resort_in_active_region(direction: int, meta: Optional[dict] = None) -> bool:
@@ -500,13 +595,13 @@ def cycle_resort_in_active_region(direction: int, meta: Optional[dict] = None) -
     active = get_active_resorts(country, region, meta)
     if not active:
         return False
-    cur_name = current_resort_name()
+    cur_name = current_resort_name(meta)
     if cur_name not in active:
-        set_current_resort_by_name(active[0])
+        set_current_resort_by_name(active[0], meta)
         cur_name = active[0]
     idx = active.index(cur_name)
     next_name = active[(idx + direction) % len(active)]
-    set_current_resort_by_name(next_name)
+    set_current_resort_by_name(next_name, meta)
     return True
 
 

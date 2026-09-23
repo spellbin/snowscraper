@@ -168,11 +168,9 @@ from snowscraper_app.resorts import (
     _load_resort_json,
     _read_selected_country,
     _read_selected_region,
-    _read_selected_resort_index,
     _resort_slug,
     _write_selected_country,
     _write_selected_region,
-    _write_selected_resort_index,
     cycle_resort_in_active_region,
     current_resort_name,
     fetch_snow_history,
@@ -741,7 +739,7 @@ def _avy_color_for_rating(val: str):
 # ----------------------------
 
 def create_selected_hill():
-    # Keep skihill.conf index mapped to metadata-derived resort ordering.
+    # resort_slug.conf is authoritative; skihill.conf is the rollback bridge.
     name = current_resort_name()
     return skiHill(name=name, url="", newSnow=0, weekSnow=0, baseSnow=0)
 
@@ -2399,7 +2397,7 @@ class SelectRegionScreen(Screen):
 
 
 class SelectResortScreen(Screen):
-    """Final resort picker that persists the metadata-order resort index."""
+    """Final resort picker that persists a stable resort slug."""
 
     def __init__(self, screen_manager, hill):
         super().__init__()
@@ -2436,10 +2434,8 @@ class SelectResortScreen(Screen):
             return
         selected = self.skiHills[self.current_index]
         try:
-            set_current_resort_by_name(selected)
-            names = get_resort_names(self.meta)
-            index = names.index(selected) if selected in names else -1
-            print(f"[SelectResort] Selected: '{selected}' (index {index}) saved to skihill.conf")
+            set_current_resort_by_name(selected, self.meta)
+            print(f"[SelectResort] Selected: '{selected}' slug saved")
             global hill
             reload_hill()
             self.screen_manager.hill = hill
